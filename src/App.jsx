@@ -4,13 +4,14 @@ import './App.css';
 function App() {
   // --- Authentication State ---
   const [token, setToken] = useState(''); 
+  const [role, setRole] = useState('teller'); // <--- ADDED ROLE STATE
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
   const [authError, setAuthError] = useState('');
 
   // --- Prediction State ---
-  const [cardNumber, setCardNumber] = useState(''); // <--- NEW CARD NUMBER STATE
+  const [cardNumber, setCardNumber] = useState('');
   const [amount, setAmount] = useState('');
   const [hour, setHour] = useState('');
   const [age, setAge] = useState('');
@@ -19,6 +20,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
+  const [driftData, setDriftData] = useState(null); // <--- ADDED DRIFT STATE
 
   const API_URL = 'https://fraud-detection-api-71aw.onrender.com';
 
@@ -37,11 +39,29 @@ function App() {
     }
   };
 
+  // --- Fetch Drift Data (Admin Only) ---
+  const fetchDrift = async () => {
+    try {
+      const res = await fetch(`${API_URL}/admin/drift`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDriftData(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch drift", error);
+    }
+  };
+
   useEffect(() => {
     if (token) {
       fetchHistory();
+      if (role === 'admin') {
+        fetchDrift();
+      }
     }
-  }, [token]);
+  }, [token, role]);
 
   // --- Handle Login / Register ---
   const handleAuth = async (e) => {
@@ -75,6 +95,7 @@ function App() {
       if (res.ok) {
         const data = await res.json();
         setToken(data.access_token);
+        setRole(data.role); // <--- SAVE ROLE ON LOGIN
       } else {
         setAuthError("Invalid username or password");
       }
@@ -83,8 +104,10 @@ function App() {
 
   const handleLogout = () => {
     setToken('');
+    setRole('teller');
     setResult(null);
     setHistory([]);
+    setDriftData(null);
   };
 
   // --- Handle Prediction ---
@@ -101,7 +124,7 @@ function App() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          card_number: cardNumber, // <--- NEW
+          card_number: cardNumber,
           amount: parseFloat(amount),
           hour_of_day: parseInt(hour),
           user_age: parseInt(age),
@@ -120,6 +143,7 @@ function App() {
       const data = await response.json();
       setResult(data);
       fetchHistory(); 
+      if (role === 'admin') fetchDrift(); // Refresh drift on new data
     } catch (error) {
       console.error(error);
       alert("Failed to connect to the API. Is the server awake?");
@@ -176,9 +200,26 @@ function App() {
         </button>
       </div>
 
+      {/* --- ADMIN DRIFT MONITOR --- */}
+      {role === 'admin' && driftData && (
+        <div style={{ 
+          width: '100%', maxWidth: '600px', marginBottom: '20px', padding: '15px', borderRadius: '8px',
+          background: driftData.drift_detected ? 'rgba(255, 75, 75, 0.2)' : 'rgba(44, 160, 44, 0.2)',
+          border: `1px solid ${driftData.drift_detected ? '#FF4B4B' : '#2ca02c'}`
+        }}>
+          <h3 style={{ color: driftData.drift_detected ? '#FF4B4B' : '#2ca02c', margin: '0 0 10px 0' }}>
+            {driftData.message}
+          </h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: '#FAFAFA' }}>
+            <span>Recent Avg: <strong>${driftData.recent_average_amount}</strong></span>
+            <span>Baseline Avg: <strong>${driftData.baseline_average_amount}</strong></span>
+            <span>Fraud Rate: <strong>{driftData.recent_fraud_rate_percentage}%</strong></span>
+          </div>
+        </div>
+      )}
+
       <div className="card">
         <form onSubmit={handlePredict}>
-          {/* NEW CARD NUMBER INPUT */}
           <div className="form-group">
             <label>Card Number</label>
             <input type="text" value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} placeholder="e.g. 1234-5678" required />
@@ -214,7 +255,6 @@ function App() {
               Recorded at: {new Date(result.timestamp).toLocaleString()}
             </p >
             
-            {/* Risk Factors */}
             {result.risk_factors && Object.keys(result.risk_factors).length > 0 && (
               <div style={{ marginTop: '15px', padding: '15px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', textAlign: 'left' }}>
                 <h4 style={{ color: result.prediction === 'FRAUD DETECTED' ? '#FF4B4B' : '#2ca02c', marginBottom: '10px', fontSize: '1rem' }}>
