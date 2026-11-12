@@ -17,7 +17,7 @@ function App() {
   
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
-  const [history, setHistory] = useState([]); // <--- ADDED HISTORY STATE
+  const [history, setHistory] = useState([]);
 
   const API_URL = 'https://fraud-detection-api-71aw.onrender.com';
 
@@ -29,14 +29,16 @@ function App() {
       });
       if (res.ok) {
         const data = await res.json();
+        console.log("HISTORY DATA FROM BACKEND:", data); // <-- DEBUG LOG
         setHistory(data);
+      } else {
+        console.error("Failed to fetch history. Status:", res.status);
       }
     } catch (error) {
       console.error("Failed to fetch history", error);
     }
   };
 
-  // Fetch history automatically when the user logs in
   useEffect(() => {
     if (token) {
       fetchHistory();
@@ -49,7 +51,6 @@ function App() {
     setAuthError('');
     
     if (isRegistering) {
-      // Register
       const res = await fetch(`${API_URL}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -63,7 +64,6 @@ function App() {
         setAuthError(data.detail || "Registration failed");
       }
     } else {
-      // Login
       const formData = new URLSearchParams();
       formData.append('username', username);
       formData.append('password', password);
@@ -120,7 +120,7 @@ function App() {
       
       const data = await response.json();
       setResult(data);
-      fetchHistory(); // <--- REFRESH TABLE AFTER PREDICTION
+      fetchHistory();
     } catch (error) {
       console.error(error);
       alert("Failed to connect to the API. Is the server awake?");
@@ -211,7 +211,7 @@ function App() {
         )}
 
         {/* --- HISTORY TABLE --- */}
-        {history.length > 0 && (
+        {history.length > 0 ? (
           <div style={{ marginTop: '40px', overflowX: 'auto' }}>
             <h3 style={{ color: '#4DB8FF', marginBottom: '15px' }}>Recent Transaction History</h3>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
@@ -237,6 +237,10 @@ function App() {
               </tbody>
             </table>
           </div>
+        ) : (
+          <p style={{ marginTop: '30px', textAlign: 'center', color: '#A0AABF' }}>
+            No transaction history yet. Run a prediction above!
+          </p >
         )}
       </div>
     </div>
