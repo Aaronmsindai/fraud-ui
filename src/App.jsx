@@ -197,7 +197,7 @@ function App() {
           </button>
         </form>
 
-        {/* --- RESULT & SHAP EXPLANATIONS --- */}
+        {/* --- RESULT & EXPLANATIONS --- */}
         {result && (
           <div className={`result-box ${result.prediction === 'FRAUD DETECTED' ? 'result-fraud' : 'result-safe'}`}>
             <h2>{result.prediction}</h2>
@@ -206,17 +206,17 @@ function App() {
               Recorded at: {new Date(result.timestamp).toLocaleString()}
             </p >
             
-            {/* SHAP Explanations */}
+            {/* Risk Factors */}
             {result.risk_factors && Object.keys(result.risk_factors).length > 0 && (
               <div style={{ marginTop: '15px', padding: '15px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', textAlign: 'left' }}>
-                <h4 style={{ color: '#FF4B4B', marginBottom: '10px', fontSize: '1rem' }}>
-                  🚨 Why was this flagged?
+                <h4 style={{ color: result.prediction === 'FRAUD DETECTED' ? '#FF4B4B' : '#2ca02c', marginBottom: '10px', fontSize: '1rem' }}>
+                  {result.prediction === 'FRAUD DETECTED' ? '🚨 Why was this flagged?' : '✅ Key decision factors'}
                 </h4>
                 <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.9rem', color: '#FAFAFA', lineHeight: '1.5' }}>
                   {Object.entries(result.risk_factors).map(([factor, score]) => (
                     <li key={factor}>
                       <strong style={{ textTransform: 'capitalize' }}>{factor.replace(/_/g, ' ')}</strong> 
-                      <span style={{ color: '#FF4B4B', marginLeft: '5px' }}>(+{score} risk)</span>
+                      <span style={{ color: result.prediction === 'FRAUD DETECTED' ? '#FF4B4B' : '#2ca02c', marginLeft: '5px' }}>(+{score} impact)</span>
                     </li>
                   ))}
                 </ul>
@@ -233,7 +233,7 @@ function App() {
               <thead>
                 <tr style={{ borderBottom: '1px solid #2E3A4E', color: '#A0AABF' }}>
                   <th style={{ padding: '10px' }}>Amount</th>
-                  <th style={{ padding: '10px' }}>Hour</th>
+                  <th style={{ padding: '10px' }}>Time</th>
                   <th style={{ padding: '10px' }}>Age</th>
                   <th style={{ padding: '10px' }}>Result</th>
                 </tr>
@@ -242,7 +242,13 @@ function App() {
                 {history.map((tx, index) => (
                   <tr key={index} style={{ borderBottom: '1px solid #1E232E' }}>
                     <td style={{ padding: '10px' }}>${tx.amount}</td>
-                    <td style={{ padding: '10px' }}>{tx.hour_of_day}:00</td>
+                    <td style={{ padding: '10px' }}>
+                      {/* AM / PM LOGIC HERE */}
+                      {tx.hour_of_day === 0 ? '12:00 AM' : 
+                       tx.hour_of_day === 12 ? '12:00 PM' : 
+                       tx.hour_of_day > 12 ? `${tx.hour_of_day - 12}:00 PM` : 
+                       `${tx.hour_of_day}:00 AM`}
+                    </td>
                     <td style={{ padding: '10px' }}>{tx.user_age}</td>
                     <td style={{ padding: '10px', color: tx.prediction === 'FRAUD DETECTED' ? '#FF4B4B' : '#2ca02c', fontWeight: 'bold' }}>
                       {tx.prediction}
