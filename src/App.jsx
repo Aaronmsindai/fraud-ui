@@ -10,6 +10,7 @@ function App() {
   const [authError, setAuthError] = useState('');
 
   // --- Prediction State ---
+  const [cardNumber, setCardNumber] = useState(''); // <--- NEW CARD NUMBER STATE
   const [amount, setAmount] = useState('');
   const [hour, setHour] = useState('');
   const [age, setAge] = useState('');
@@ -100,6 +101,7 @@ function App() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
+          card_number: cardNumber, // <--- NEW
           amount: parseFloat(amount),
           hour_of_day: parseInt(hour),
           user_age: parseInt(age),
@@ -176,6 +178,12 @@ function App() {
 
       <div className="card">
         <form onSubmit={handlePredict}>
+          {/* NEW CARD NUMBER INPUT */}
+          <div className="form-group">
+            <label>Card Number</label>
+            <input type="text" value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} placeholder="e.g. 1234-5678" required />
+          </div>
+
           <div className="form-group">
             <label>Transaction Amount ($)</label>
             <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 4500" required />
@@ -232,24 +240,23 @@ function App() {
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #2E3A4E', color: '#A0AABF' }}>
+                  <th style={{ padding: '10px' }}>Card</th>
                   <th style={{ padding: '10px' }}>Amount</th>
                   <th style={{ padding: '10px' }}>Time</th>
-                  <th style={{ padding: '10px' }}>Age</th>
                   <th style={{ padding: '10px' }}>Result</th>
                 </tr>
               </thead>
               <tbody>
                 {history.map((tx, index) => (
                   <tr key={index} style={{ borderBottom: '1px solid #1E232E' }}>
+                    <td style={{ padding: '10px' }}>{tx.card_number}</td>
                     <td style={{ padding: '10px' }}>${tx.amount}</td>
                     <td style={{ padding: '10px' }}>
-                      {/* AM / PM LOGIC HERE */}
                       {tx.hour_of_day === 0 ? '12:00 AM' : 
                        tx.hour_of_day === 12 ? '12:00 PM' : 
                        tx.hour_of_day > 12 ? `${tx.hour_of_day - 12}:00 PM` : 
                        `${tx.hour_of_day}:00 AM`}
                     </td>
-                    <td style={{ padding: '10px' }}>{tx.user_age}</td>
                     <td style={{ padding: '10px', color: tx.prediction === 'FRAUD DETECTED' ? '#FF4B4B' : '#2ca02c', fontWeight: 'bold' }}>
                       {tx.prediction}
                     </td>
