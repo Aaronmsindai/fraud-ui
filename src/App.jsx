@@ -29,10 +29,7 @@ function App() {
       });
       if (res.ok) {
         const data = await res.json();
-        console.log("HISTORY DATA FROM BACKEND:", data); // <-- DEBUG LOG
         setHistory(data);
-      } else {
-        console.error("Failed to fetch history. Status:", res.status);
       }
     } catch (error) {
       console.error("Failed to fetch history", error);
@@ -120,7 +117,7 @@ function App() {
       
       const data = await response.json();
       setResult(data);
-      fetchHistory();
+      fetchHistory(); 
     } catch (error) {
       console.error(error);
       alert("Failed to connect to the API. Is the server awake?");
@@ -200,6 +197,7 @@ function App() {
           </button>
         </form>
 
+        {/* --- RESULT & SHAP EXPLANATIONS --- */}
         {result && (
           <div className={`result-box ${result.prediction === 'FRAUD DETECTED' ? 'result-fraud' : 'result-safe'}`}>
             <h2>{result.prediction}</h2>
@@ -207,6 +205,23 @@ function App() {
             <p style={{ fontSize: '0.9rem', marginTop: '10px', opacity: 0.8 }}>
               Recorded at: {new Date(result.timestamp).toLocaleString()}
             </p >
+            
+            {/* SHAP Explanations */}
+            {result.risk_factors && Object.keys(result.risk_factors).length > 0 && (
+              <div style={{ marginTop: '15px', padding: '15px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', textAlign: 'left' }}>
+                <h4 style={{ color: '#FF4B4B', marginBottom: '10px', fontSize: '1rem' }}>
+                  🚨 Why was this flagged?
+                </h4>
+                <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.9rem', color: '#FAFAFA', lineHeight: '1.5' }}>
+                  {Object.entries(result.risk_factors).map(([factor, score]) => (
+                    <li key={factor}>
+                      <strong style={{ textTransform: 'capitalize' }}>{factor.replace(/_/g, ' ')}</strong> 
+                      <span style={{ color: '#FF4B4B', marginLeft: '5px' }}>(+{score} risk)</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
 
