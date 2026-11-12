@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import './App.css';
 
 function App() {
@@ -17,8 +17,31 @@ function App() {
   
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [history, setHistory] = useState([]); // <--- ADDED HISTORY STATE
 
   const API_URL = 'https://fraud-detection-api-71aw.onrender.com';
+
+  // --- Fetch History Function ---
+  const fetchHistory = async () => {
+    try {
+      const res = await fetch(`${API_URL}/history`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setHistory(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch history", error);
+    }
+  };
+
+  // Fetch history automatically when the user logs in
+  useEffect(() => {
+    if (token) {
+      fetchHistory();
+    }
+  }, [token]);
 
   // --- Handle Login / Register ---
   const handleAuth = async (e) => {
@@ -63,6 +86,7 @@ function App() {
   const handleLogout = () => {
     setToken('');
     setResult(null);
+    setHistory([]);
   };
 
   // --- Handle Prediction ---
@@ -96,6 +120,7 @@ function App() {
       
       const data = await response.json();
       setResult(data);
+      fetchHistory(); // <--- REFRESH TABLE AFTER PREDICTION
     } catch (error) {
       console.error(error);
       alert("Failed to connect to the API. Is the server awake?");
@@ -182,6 +207,35 @@ function App() {
             <p style={{ fontSize: '0.9rem', marginTop: '10px', opacity: 0.8 }}>
               Recorded at: {new Date(result.timestamp).toLocaleString()}
             </p >
+          </div>
+        )}
+
+        {/* --- HISTORY TABLE --- */}
+        {history.length > 0 && (
+          <div style={{ marginTop: '40px', overflowX: 'auto' }}>
+            <h3 style={{ color: '#4DB8FF', marginBottom: '15px' }}>Recent Transaction History</h3>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #2E3A4E', color: '#A0AABF' }}>
+                  <th style={{ padding: '10px' }}>Amount</th>
+                  <th style={{ padding: '10px' }}>Hour</th>
+                  <th style={{ padding: '10px' }}>Age</th>
+                  <th style={{ padding: '10px' }}>Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((tx, index) => (
+                  <tr key={index} style={{ borderBottom: '1px solid #1E232E' }}>
+                    <td style={{ padding: '10px' }}>${tx.amount}</td>
+                    <td style={{ padding: '10px' }}>{tx.hour_of_day}:00</td>
+                    <td style={{ padding: '10px' }}>{tx.user_age}</td>
+                    <td style={{ padding: '10px', color: tx.prediction === 'FRAUD DETECTED' ? '#FF4B4B' : '#2ca02c', fontWeight: 'bold' }}>
+                      {tx.prediction}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
