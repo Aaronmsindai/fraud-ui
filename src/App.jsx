@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'; // <--- ADDED THIS IMPORT
+import { useState, useEffect } from 'react'; // <--- MUST HAVE THIS IMPORT
 import './App.css';
 
 function App() {
@@ -22,6 +22,12 @@ function App() {
   const [isInternational, setIsInternational] = useState(false);
   const [ipAddress, setIpAddress] = useState('192.168.1.1'); 
   const [deviceId, setDeviceId] = useState('iPhone-12');
+  const [typingSpeed, setTypingSpeed] = useState(1.5); // NEW: Behavioral Biometrics
+
+  // --- ACH Validation State ---
+  const [achAccount, setAchAccount] = useState('');
+  const [achRouting, setAchRouting] = useState('');
+  const [achStatus, setAchStatus] = useState(null);
 
   // --- Real-Time Validation Errors ---
   const [formErrors, setFormErrors] = useState({
@@ -76,7 +82,7 @@ function App() {
     }
   }, [token, role]);
 
-  // --- Auth Handlers (With Detailed Error Catching) ---
+  // --- Auth Handlers ---
   const handleAuth = async (e) => {
     e.preventDefault();
     setAuthError('');
@@ -113,7 +119,6 @@ function App() {
           setRole(data.role);
           setActiveTab('dashboard');
         } else {
-          // CATCH THE REAL LOGIN ERROR
           const errorData = await res.json();
           let errorMsg = "Invalid username or password";
           if (errorData.detail) {
@@ -129,6 +134,24 @@ function App() {
 
   const handleLogout = () => {
     setToken(''); setRole('teller'); setResult(null); setHistory([]); setDriftData(null); setAuditLogs([]); setActiveTab('dashboard');
+  };
+
+  // --- ACH Validation Handler ---
+  const handleAchVerify = async (e) => {
+    e.preventDefault();
+    setAchStatus(null);
+    try {
+      const res = await fetch(`${API_URL}/verify_account`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ account_number: achAccount, routing_number: achRouting }),
+      });
+      const data = await res.json();
+      if (res.ok) setAchStatus({ type: 'success', msg: data.message });
+      else setAchStatus({ type: 'error', msg: data.detail });
+    } catch (err) {
+      setAchStatus({ type: 'error', msg: 'Failed to connect to API' });
+    }
   };
 
   // --- Helpers ---
@@ -158,7 +181,6 @@ function App() {
     let errors = { cardNumber: '', amount: '', hour: '', age: '', ipAddress: '', deviceId: '' };
     let isValid = true;
 
-    // 1. Card Number
     const cleanCard = cardNumber.replace(/\D/g, '');
     if (cleanCard.length < 16 || cleanCard.length > 19) {
       errors.cardNumber = "Card number must be 16-19 digits.";
@@ -168,7 +190,6 @@ function App() {
       isValid = false;
     }
 
-    // 2. Amount
     if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
       errors.amount = "Amount must be greater than $0.";
       isValid = false;
@@ -177,28 +198,24 @@ function App() {
       isValid = false;
     }
 
-    // 3. Hour
     const hourNum = parseInt(hour);
     if (isNaN(hourNum) || hourNum < 0 || hourNum > 23) {
       errors.hour = "Hour must be between 0 and 23.";
       isValid = false;
     }
 
-    // 4. Age (Updated to 100)
     const ageNum = parseInt(age);
     if (isNaN(ageNum) || ageNum < 18 || ageNum > 100) {
       errors.age = "Age must be between 18 and 100.";
       isValid = false;
     }
 
-    // 5. IP Address
     const ipRegex = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
     if (!ipRegex.test(ipAddress)) {
       errors.ipAddress = "Invalid IPv4 address (e.g. 192.168.1.1).";
       isValid = false;
     }
 
-    // 6. Device ID
     if (deviceId.trim().length < 3) {
       errors.deviceId = "Device ID must be at least 3 characters.";
       isValid = false;
@@ -210,7 +227,6 @@ function App() {
 
   const handlePredict = async (e) => {
     e.preventDefault();
-    
     if (!validateForm()) return;
 
     setLoading(true); setResult(null);
@@ -227,7 +243,8 @@ function App() {
           user_age: parseInt(age), 
           is_international: isInternational ? 1 : 0,
           ip_address: ipAddress,
-          device_id: deviceId
+          device_id: deviceId,
+          typing_speed: typingSpeed // SENDING BIOMETRIC DATA
         }),
       });
 
@@ -299,6 +316,7 @@ function App() {
         <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#4DB8FF', marginBottom: '20px' }}>⚡ FraudShield AI</div>
         <div className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>Dashboard</div>
         <div className={`nav-item ${activeTab === 'transactions' ? 'active' : ''}`} onClick={() => setActiveTab('transactions')}>Transactions</div>
+        <div className={`nav-item ${activeTab === 'ach' ? 'active' : ''}`} onClick={() => setActiveTab('ach')}>ACH Validation</div>
         <div className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')}>Risk Analytics</div>
         {role === 'admin' && <div className={`nav-item ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => setActiveTab('admin')}>Admin Settings</div>}
         <div style={{ marginTop: 'auto' }}><div className="nav-item" onClick={handleLogout} style={{ color: '#FF4B4B' }}>Logout</div></div>
@@ -311,6 +329,7 @@ function App() {
             <h1 style={{ margin: 0, color: '#FAFAFA' }}>
               {activeTab === 'dashboard' && 'Dashboard Overview'}
               {activeTab === 'transactions' && 'All Transactions'}
+              {activeTab === 'ach' && 'ACH Nacha Validation'}
               {activeTab === 'analytics' && 'Risk Analytics'}
               {activeTab === 'admin' && 'Admin Settings'}
             </h1>
@@ -417,7 +436,7 @@ function App() {
                     </div>
                   </div>
                   
-                  {/* IP and Device */}
+                  {/* IP, Device, Speed */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                     <div className="form-group">
                       <label>IP Address</label>
@@ -445,6 +464,12 @@ function App() {
                       />
                       {formErrors.deviceId && <span style={{ color: '#FF4B4B', fontSize: '0.8rem', marginTop: '5px' }}>{formErrors.deviceId}</span>}
                     </div>
+                  </div>
+
+                  {/* Behavioral Biometrics */}
+                  <div className="form-group">
+                    <label>Typing Speed (Seconds)</label>
+                    <input type="number" step="0.1" value={typingSpeed} onChange={(e) => setTypingSpeed(parseFloat(e.target.value))} />
                   </div>
 
                   <div className="checkbox-group" style={{ marginBottom: '20px' }}>
@@ -543,6 +568,30 @@ function App() {
                 </tbody>
               </table>
             ) : <p style={{ textAlign: 'center', color: '#A0AABF', marginTop: '30px' }}>No transactions analyzed yet.</p>}
+          </div>
+        )}
+
+        {/* --- TAB: ACH VALIDATION --- */}
+        {activeTab === 'ach' && (
+          <div className="dashboard-card" style={{ maxWidth: '600px' }}>
+            <h3 style={{ color: '#FAFAFA', marginBottom: '20px' }}>Nacha / ACH Account Validation</h3>
+            <form onSubmit={handleAchVerify}>
+              <div className="form-group">
+                <label>Routing Number (9 digits)</label>
+                <input type="text" value={achRouting} onChange={(e) => setAchRouting(e.target.value)} placeholder="021000021" maxLength="9" required />
+              </div>
+              <div className="form-group">
+                <label>Account Number</label>
+                <input type="text" value={achAccount} onChange={(e) => setAchAccount(e.target.value)} placeholder="12345678" required />
+              </div>
+              <button type="submit" style={{ marginBottom: '20px' }}>Verify Account</button>
+            </form>
+            
+            {achStatus && (
+              <div style={{ padding: '15px', borderRadius: '8px', border: '1px solid', background: achStatus.type === 'success' ? 'rgba(44, 160, 44, 0.1)' : 'rgba(255, 75, 75, 0.1)', borderColor: achStatus.type === 'success' ? '#2ca02c' : '#FF4B4B', color: achStatus.type === 'success' ? '#2ca02c' : '#FF4B4B' }}>
+                {achStatus.msg}
+              </div>
+            )}
           </div>
         )}
 
