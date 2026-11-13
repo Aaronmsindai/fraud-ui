@@ -20,10 +20,13 @@ function App() {
   const [hour, setHour] = useState('');
   const [age, setAge] = useState('');
   const [isInternational, setIsInternational] = useState(false);
-  
-  // NEW: Device & Geo Intelligence
   const [ipAddress, setIpAddress] = useState('192.168.1.1'); 
   const [deviceId, setDeviceId] = useState('iPhone-12');
+
+  // --- Real-Time Validation Errors ---
+  const [formErrors, setFormErrors] = useState({
+    cardNumber: '', amount: '', hour: '', age: '', ipAddress: '', deviceId: ''
+  });
   
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -114,7 +117,7 @@ function App() {
         }
       }
     } catch (error) {
-      setAuthError("Failed to connect to the server. It may be waking up.");
+      setAuthError("Failed to connect to the server.");
     }
   };
 
@@ -144,12 +147,66 @@ function App() {
     return sum % 10 === 0;
   };
 
+  // --- Comprehensive Validation Function ---
+  const validateForm = () => {
+    let errors = { cardNumber: '', amount: '', hour: '', age: '', ipAddress: '', deviceId: '' };
+    let isValid = true;
+
+    // 1. Card Number
+    const cleanCard = cardNumber.replace(/\D/g, '');
+    if (cleanCard.length < 16 || cleanCard.length > 19) {
+      errors.cardNumber = "Card number must be 16-19 digits.";
+      isValid = false;
+    } else if (!isValidLuhn(cleanCard)) {
+      errors.cardNumber = "Invalid card number (Luhn check failed).";
+      isValid = false;
+    }
+
+    // 2. Amount
+    if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+      errors.amount = "Amount must be greater than $0.";
+      isValid = false;
+    } else if (parseFloat(amount) >= 1000000) {
+      errors.amount = "Amount exceeds maximum limit of $1,000,000.";
+      isValid = false;
+    }
+
+    // 3. Hour
+    const hourNum = parseInt(hour);
+    if (isNaN(hourNum) || hourNum < 0 || hourNum > 23) {
+      errors.hour = "Hour must be between 0 and 23.";
+      isValid = false;
+    }
+
+    // 4. Age
+    const ageNum = parseInt(age);
+    if (isNaN(ageNum) || ageNum < 18 || ageNum > 120) {
+      errors.age = "Age must be between 18 and 120.";
+      isValid = false;
+    }
+
+    // 5. IP Address
+    const ipRegex = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+    if (!ipRegex.test(ipAddress)) {
+      errors.ipAddress = "Invalid IPv4 address (e.g. 192.168.1.1).";
+      isValid = false;
+    }
+
+    // 6. Device ID
+    if (deviceId.trim().length < 3) {
+      errors.deviceId = "Device ID must be at least 3 characters.";
+      isValid = false;
+    }
+
+    setFormErrors(errors);
+    return isValid;
+  };
+
   const handlePredict = async (e) => {
     e.preventDefault();
-    if (!isValidLuhn(cardNumber)) {
-      alert("Invalid Card Number. Please use a valid test card like 4242 4242 4242 4242.");
-      return;
-    }
+    
+    if (!validateForm()) return;
+
     setLoading(true); setResult(null);
 
     try {
@@ -158,7 +215,7 @@ function App() {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
           card_network: cardNetwork, 
-          card_number: cardNumber, 
+          card_number: cardNumber.replace(/\s/g, ''),
           amount: parseFloat(amount),
           hour_of_day: parseInt(hour), 
           user_age: parseInt(age), 
@@ -225,7 +282,7 @@ function App() {
   // --- Calculate KPIs ---
   const totalAnalyzed = history.length;
   const fraudCount = history.filter(tx => tx.prediction === 'BLOCK').length;
-  const safeCount = totalAnalyzed - fraudCount;
+  const safeCount = history.filter(tx => tx.prediction === 'APPROVE').length;
   const fraudRate = totalAnalyzed > 0 ? ((fraudCount / totalAnalyzed) * 100).toFixed(1) : 0;
 
   // --- Render Dashboard ---
@@ -233,23 +290,12 @@ function App() {
     <div className="dashboard-wrapper">
       {/* SIDEBAR */}
       <div className="sidebar">
-        <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#4DB8FF', marginBottom: '20px' }}>
-          ⚡ FraudShield AI
-        </div>
-        
+        <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#4DB8FF', marginBottom: '20px' }}>⚡ FraudShield AI</div>
         <div className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>Dashboard</div>
         <div className={`nav-item ${activeTab === 'transactions' ? 'active' : ''}`} onClick={() => setActiveTab('transactions')}>Transactions</div>
         <div className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')}>Risk Analytics</div>
-        
-        {role === 'admin' && (
-          <div className={`nav-item ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => setActiveTab('admin')}>Admin Settings</div>
-        )}
-        
-        <div style={{ marginTop: 'auto' }}>
-          <div className="nav-item" onClick={handleLogout} style={{ color: '#FF4B4B' }}>
-            Logout
-          </div>
-        </div>
+        {role === 'admin' && <div className={`nav-item ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => setActiveTab('admin')}>Admin Settings</div>}
+        <div style={{ marginTop: 'auto' }}><div className="nav-item" onClick={handleLogout} style={{ color: '#FF4B4B' }}>Logout</div></div>
       </div>
 
       {/* MAIN CONTENT */}
@@ -264,9 +310,7 @@ function App() {
             </h1>
             <p style={{ color: '#A0AABF', margin: '5px 0 0 0' }}>Real-time transaction analysis</p>
           </div>
-          <div style={{ color: '#4DB8FF', fontWeight: 'bold' }}>
-            Role: {role.toUpperCase()}
-          </div>
+          <div style={{ color: '#4DB8FF', fontWeight: 'bold' }}>Role: {role.toUpperCase()}</div>
         </div>
 
         {/* --- TAB: DASHBOARD --- */}
@@ -291,40 +335,108 @@ function App() {
               {/* Form */}
               <div className="dashboard-card">
                 <h3 style={{ marginBottom: '20px', color: '#FAFAFA' }}>Analyze New Transaction</h3>
-                <form onSubmit={handlePredict}>
+                <form onSubmit={handlePredict} noValidate>
+                  
+                  {/* Card Number */}
                   <div className="form-group">
                     <label style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span>Card Number</span>
-                      {cardNumber.length >= 1 && (
-                        <span style={{ color: '#4DB8FF', fontWeight: 'bold', fontSize: '0.8rem' }}>{detectCardNetwork(cardNumber)}</span>
-                      )}
+                      {cardNumber.length >= 1 && <span style={{ color: '#4DB8FF', fontWeight: 'bold', fontSize: '0.8rem' }}>{detectCardNetwork(cardNumber)}</span>}
                     </label>
-                    <input type="text" value={cardNumber} onChange={(e) => { setCardNumber(e.target.value); setCardNetwork(detectCardNetwork(e.target.value)); }} placeholder="4242..." required />
+                    <input 
+                      type="text" 
+                      value={cardNumber} 
+                      maxLength={19}
+                      onChange={(e) => {
+                        const sanitized = e.target.value.replace(/[^0-9 ]/g, '');
+                        if (sanitized.length <= 19) {
+                          setCardNumber(sanitized); 
+                          setCardNetwork(detectCardNetwork(sanitized));
+                          if (formErrors.cardNumber) setFormErrors({...formErrors, cardNumber: ''});
+                        }
+                      }} 
+                      placeholder="4242 4242 4242 4242" 
+                      style={{ borderColor: formErrors.cardNumber ? '#FF4B4B' : '' }}
+                    />
+                    {formErrors.cardNumber && <span style={{ color: '#FF4B4B', fontSize: '0.8rem', marginTop: '5px' }}>{formErrors.cardNumber}</span>}
                   </div>
+
+                  {/* Amount */}
                   <div className="form-group">
                     <label>Amount ($)</label>
-                    <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 4500" min="0.01" step="0.01" required />
+                    <input 
+                      type="number" 
+                      value={amount} 
+                      onChange={(e) => {
+                        setAmount(e.target.value);
+                        if (formErrors.amount) setFormErrors({...formErrors, amount: ''});
+                      }} 
+                      placeholder="e.g. 4500" 
+                      style={{ borderColor: formErrors.amount ? '#FF4B4B' : '' }}
+                    />
+                    {formErrors.amount && <span style={{ color: '#FF4B4B', fontSize: '0.8rem', marginTop: '5px' }}>{formErrors.amount}</span>}
                   </div>
+
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    {/* Hour */}
                     <div className="form-group">
                       <label>Hour (0-23)</label>
-                      <input type="number" value={hour} onChange={(e) => setHour(e.target.value)} placeholder="e.g. 2" min="0" max="23" required />
+                      <input 
+                        type="number" 
+                        value={hour} 
+                        onChange={(e) => {
+                          setHour(e.target.value);
+                          if (formErrors.hour) setFormErrors({...formErrors, hour: ''});
+                        }} 
+                        placeholder="e.g. 2" 
+                        style={{ borderColor: formErrors.hour ? '#FF4B4B' : '' }}
+                      />
+                      {formErrors.hour && <span style={{ color: '#FF4B4B', fontSize: '0.8rem', marginTop: '5px' }}>{formErrors.hour}</span>}
                     </div>
+                    {/* Age */}
                     <div className="form-group">
                       <label>User Age</label>
-                      <input type="number" value={age} onChange={(e) => setAge(e.target.value)} placeholder="e.g. 25" min="18" max="120" required />
+                      <input 
+                        type="number" 
+                        value={age} 
+                        onChange={(e) => {
+                          setAge(e.target.value);
+                          if (formErrors.age) setFormErrors({...formErrors, age: ''});
+                        }} 
+                        placeholder="e.g. 25" 
+                        style={{ borderColor: formErrors.age ? '#FF4B4B' : '' }}
+                      />
+                      {formErrors.age && <span style={{ color: '#FF4B4B', fontSize: '0.8rem', marginTop: '5px' }}>{formErrors.age}</span>}
                     </div>
                   </div>
                   
-                  {/* NEW: IP and Device for Geo/Device Intelligence */}
+                  {/* IP and Device */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                     <div className="form-group">
                       <label>IP Address</label>
-                      <input type="text" value={ipAddress} onChange={(e) => setIpAddress(e.target.value)} required />
+                      <input 
+                        type="text" 
+                        value={ipAddress} 
+                        onChange={(e) => {
+                          setIpAddress(e.target.value);
+                          if (formErrors.ipAddress) setFormErrors({...formErrors, ipAddress: ''});
+                        }} 
+                        style={{ borderColor: formErrors.ipAddress ? '#FF4B4B' : '' }}
+                      />
+                      {formErrors.ipAddress && <span style={{ color: '#FF4B4B', fontSize: '0.8rem', marginTop: '5px' }}>{formErrors.ipAddress}</span>}
                     </div>
                     <div className="form-group">
                       <label>Device ID</label>
-                      <input type="text" value={deviceId} onChange={(e) => setDeviceId(e.target.value)} required />
+                      <input 
+                        type="text" 
+                        value={deviceId} 
+                        onChange={(e) => {
+                          setDeviceId(e.target.value);
+                          if (formErrors.deviceId) setFormErrors({...formErrors, deviceId: ''});
+                        }} 
+                        style={{ borderColor: formErrors.deviceId ? '#FF4B4B' : '' }}
+                      />
+                      {formErrors.deviceId && <span style={{ color: '#FF4B4B', fontSize: '0.8rem', marginTop: '5px' }}>{formErrors.deviceId}</span>}
                     </div>
                   </div>
 
@@ -442,7 +554,6 @@ function App() {
               </div>
             </div>
 
-            {/* Admin Drift Monitor moved here */}
             {role === 'admin' && driftData && (
               <div className="dashboard-card" style={{ borderColor: driftData.drift_detected ? '#FF4B4B' : '#2ca02c' }}>
                 <h3 style={{ margin: '0 0 15px 0', color: driftData.drift_detected ? '#FF4B4B' : '#2ca02c' }}>Model Drift Monitor</h3>
@@ -479,7 +590,6 @@ function App() {
             </div>
           </div>
         )}
-
       </div>
     </div>
   );
