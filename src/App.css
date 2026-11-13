@@ -1,8 +1,20 @@
+/* --- GLOBAL & BASE STYLES --- */
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #0E1117;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* --- LOGIN PAGE STYLES --- */
 .app-container {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  min-height: 100vh;
   padding: 40px;
+  box-sizing: border-box;
 }
 
 .header {
@@ -31,6 +43,7 @@
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
 }
 
+/* --- FORM INPUTS --- */
 .form-group {
   display: flex;
   flex-direction: column;
@@ -43,7 +56,8 @@
   font-weight: 500;
 }
 
-.form-group input {
+.form-group input, 
+.form-group select {
   background-color: #0E1117;
   border: 1px solid #2E3A4E;
   color: #FAFAFA;
@@ -52,9 +66,12 @@
   font-size: 1rem;
   outline: none;
   transition: border-color 0.2s;
+  width: 100%;
+  box-sizing: border-box;
 }
 
-.form-group input:focus {
+.form-group input:focus, 
+.form-group select:focus {
   border-color: #4DB8FF;
 }
 
@@ -71,6 +88,7 @@
   cursor: pointer;
 }
 
+/* --- BUTTONS --- */
 button {
   width: 100%;
   padding: 15px;
@@ -94,6 +112,7 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* --- RESULT BOXES --- */
 .result-box {
   margin-top: 30px;
   padding: 20px;
@@ -120,4 +139,109 @@ button:disabled {
 
 .result-box p {
   font-size: 1.2rem;
+}
+
+/* --- NEW DASHBOARD LAYOUT --- */
+.dashboard-wrapper {
+  display: flex;
+  min-height: 100vh;
+  background-color: #0E1117;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 250px;
+  background-color: #161B22;
+  border-right: 1px solid #2E3A4E;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  box-sizing: border-box;
+}
+
+.nav-item {
+  color: #A0AABF;
+  padding: 12px 15px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.nav-item:hover, .nav-item.active {
+  background-color: #1E232E;
+  color: #4DB8FF;
+}
+
+/* Main Content Area */
+.main-content {
+  flex: 1;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+  box-sizing: border-box;
+}
+
+/* KPI Cards */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+}
+
+.kpi-card {
+  background-color: #161B22;
+  border: 1px solid #2E3A4E;
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.kpi-title {
+  color: #A0AABF;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.kpi-value {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #FAFAFA;
+}
+
+.kpi-value.danger { color: #FF4B4B; }
+.kpi-value.success { color: #2ca02c; }
+
+/* Workspace Grid (Form + Table Side by Side) */
+.workspace-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 25px;
+  align-items: start;
+}
+
+@media (max-width: 1000px) {
+  .workspace-grid { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+}
+
+.dashboard-card {
+  background-color: #161B22;
+  border: 1px solid #2E3A4E;
+  border-radius: 12px;
+  padding: 25px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+}
+
+/* Table Hover Effects */
+.table-row-hover {
+  transition: background-color 0.2s;
+}
+.table-row-hover:hover {
+  background-color: #1E232E;
 }
