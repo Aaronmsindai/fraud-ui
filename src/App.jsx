@@ -11,15 +11,19 @@ function App() {
   const [authError, setAuthError] = useState('');
 
   // --- App State ---
-  const [activeTab, setActiveTab] = useState('dashboard'); // Controls sidebar navigation
+  const [activeTab, setActiveTab] = useState('dashboard');
   
-  // --- Prediction State —
+  // --- Prediction State ---
   const [cardNetwork, setCardNetwork] = useState('Unknown');
   const [cardNumber, setCardNumber] = useState('');
   const [amount, setAmount] = useState('');
   const [hour, setHour] = useState('');
   const [age, setAge] = useState('');
   const [isInternational, setIsInternational] = useState(false);
+  
+  // NEW: Device & Geo Intelligence
+  const [ipAddress, setIpAddress] = useState('192.168.1.1'); 
+  const [deviceId, setDeviceId] = useState('iPhone-12');
   
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -153,8 +157,14 @@ function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
-          card_network: cardNetwork, card_number: cardNumber, amount: parseFloat(amount),
-          hour_of_day: parseInt(hour), user_age: parseInt(age), is_international: isInternational ? 1 : 0,
+          card_network: cardNetwork, 
+          card_number: cardNumber, 
+          amount: parseFloat(amount),
+          hour_of_day: parseInt(hour), 
+          user_age: parseInt(age), 
+          is_international: isInternational ? 1 : 0,
+          ip_address: ipAddress,
+          device_id: deviceId
         }),
       });
 
@@ -163,6 +173,11 @@ function App() {
       
       const data = await response.json();
       setResult(data);
+      
+      if (data.prediction === "STEP-UP AUTH") {
+        alert("🛑 STEP-UP AUTHENTICATION REQUIRED: An OTP has been sent to the customer's phone.");
+      }
+
       fetchHistory(); 
       if (role === 'admin') { fetchDrift(); fetchAuditLogs(); }
     } catch (error) {
@@ -209,7 +224,7 @@ function App() {
 
   // --- Calculate KPIs ---
   const totalAnalyzed = history.length;
-  const fraudCount = history.filter(tx => tx.prediction === 'FRAUD DETECTED').length;
+  const fraudCount = history.filter(tx => tx.prediction === 'BLOCK').length;
   const safeCount = totalAnalyzed - fraudCount;
   const fraudRate = totalAnalyzed > 0 ? ((fraudCount / totalAnalyzed) * 100).toFixed(1) : 0;
 
@@ -263,11 +278,11 @@ function App() {
                 <span className="kpi-value">{totalAnalyzed}</span>
               </div>
               <div className="kpi-card">
-                <span className="kpi-title">Fraud Detected</span>
+                <span className="kpi-title">Frauds Blocked</span>
                 <span className="kpi-value danger">{fraudCount}</span>
               </div>
               <div className="kpi-card">
-                <span className="kpi-title">Safe Transactions</span>
+                <span className="kpi-title">Approved</span>
                 <span className="kpi-value success">{safeCount}</span>
               </div>
             </div>
@@ -300,6 +315,19 @@ function App() {
                       <input type="number" value={age} onChange={(e) => setAge(e.target.value)} placeholder="e.g. 25" min="18" max="120" required />
                     </div>
                   </div>
+                  
+                  {/* NEW: IP and Device for Geo/Device Intelligence */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div className="form-group">
+                      <label>IP Address</label>
+                      <input type="text" value={ipAddress} onChange={(e) => setIpAddress(e.target.value)} required />
+                    </div>
+                    <div className="form-group">
+                      <label>Device ID</label>
+                      <input type="text" value={deviceId} onChange={(e) => setDeviceId(e.target.value)} required />
+                    </div>
+                  </div>
+
                   <div className="checkbox-group" style={{ marginBottom: '20px' }}>
                     <input type="checkbox" checked={isInternational} onChange={(e) => setIsInternational(e.target.checked)} />
                     <label>International Transaction</label>
@@ -307,10 +335,17 @@ function App() {
                   <button type="submit" disabled={loading} style={{ width: '100%' }}>{loading ? 'Analyzing...' : 'Analyze Transaction'}</button>
                 </form>
 
+                {/* RESULT BOX (3-Tier) */}
                 {result && (
-                  <div className={`result-box ${result.prediction === 'FRAUD DETECTED' ? 'result-fraud' : 'result-safe'}`} style={{ marginTop: '20px' }}>
-                    <h2 style={{ margin: 0 }}>{result.prediction}</h2>
-                    <p style={{ margin: '5px 0' }}>Confidence: {result.fraud_probability}%</p>
+                  <div style={{ 
+                    marginTop: '20px', padding: '20px', borderRadius: '8px', textAlign: 'center',
+                    background: result.prediction === 'BLOCK' ? 'rgba(255, 75, 75, 0.1)' : result.prediction === 'STEP-UP AUTH' ? 'rgba(255, 184, 0, 0.1)' : 'rgba(44, 160, 44, 0.1)',
+                    border: `1px solid ${result.prediction === 'BLOCK' ? '#FF4B4B' : result.prediction === 'STEP-UP AUTH' ? '#FFB800' : '#2ca02c'}`,
+                  }}>
+                    <h2 style={{ margin: 0, color: result.prediction === 'BLOCK' ? '#FF4B4B' : result.prediction === 'STEP-UP AUTH' ? '#FFB800' : '#2ca02c' }}>
+                      {result.prediction}
+                    </h2>
+                    <p style={{ margin: '5px 0', color: '#FAFAFA' }}>Confidence: {result.fraud_probability}%</p>
                   </div>
                 )}
               </div>
@@ -333,7 +368,11 @@ function App() {
                           <td style={{ padding: '15px 10px' }}>{tx.card_network} (...{tx.card_number.slice(-4)})</td>
                           <td style={{ padding: '15px 10px' }}>${tx.amount}</td>
                           <td style={{ padding: '15px 10px' }}>
-                            <span style={{ padding: '5px 10px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 'bold', background: tx.prediction === 'FRAUD DETECTED' ? 'rgba(255, 75, 75, 0.1)' : 'rgba(44, 160, 44, 0.1)', color: tx.prediction === 'FRAUD DETECTED' ? '#FF4B4B' : '#2ca02c' }}>
+                            <span style={{ 
+                              padding: '5px 10px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 'bold', 
+                              background: tx.prediction === 'BLOCK' ? 'rgba(255, 75, 75, 0.1)' : tx.prediction === 'STEP-UP AUTH' ? 'rgba(255, 184, 0, 0.1)' : 'rgba(44, 160, 44, 0.1)', 
+                              color: tx.prediction === 'BLOCK' ? '#FF4B4B' : tx.prediction === 'STEP-UP AUTH' ? '#FFB800' : '#2ca02c' 
+                            }}>
                               {tx.prediction}
                             </span>
                           </td>
@@ -357,6 +396,7 @@ function App() {
                   <tr style={{ borderBottom: '1px solid #2E3A4E', color: '#A0AABF' }}>
                     <th style={{ padding: '10px' }}>Card</th>
                     <th style={{ padding: '10px' }}>Amount</th>
+                    <th style={{ padding: '10px' }}>IP / Device</th>
                     <th style={{ padding: '10px' }}>Time</th>
                     <th style={{ padding: '10px' }}>Result</th>
                   </tr>
@@ -366,11 +406,16 @@ function App() {
                     <tr key={index} className="table-row-hover" style={{ borderBottom: '1px solid #1E232E', color: '#FAFAFA' }}>
                       <td style={{ padding: '15px 10px' }}>{tx.card_network} (...{tx.card_number.slice(-4)})</td>
                       <td style={{ padding: '15px 10px' }}>${tx.amount}</td>
+                      <td style={{ padding: '15px 10px', color: '#A0AABF', fontSize: '0.8rem' }}>{tx.ip_address} <br/> {tx.device_id}</td>
                       <td style={{ padding: '15px 10px', color: '#A0AABF' }}>
                         {tx.hour_of_day === 0 ? '12:00 AM' : tx.hour_of_day === 12 ? '12:00 PM' : tx.hour_of_day > 12 ? `${tx.hour_of_day - 12}:00 PM` : `${tx.hour_of_day}:00 AM`}
                       </td>
                       <td style={{ padding: '15px 10px' }}>
-                        <span style={{ padding: '5px 10px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 'bold', background: tx.prediction === 'FRAUD DETECTED' ? 'rgba(255, 75, 75, 0.1)' : 'rgba(44, 160, 44, 0.1)', color: tx.prediction === 'FRAUD DETECTED' ? '#FF4B4B' : '#2ca02c' }}>
+                        <span style={{ 
+                          padding: '5px 10px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 'bold', 
+                          background: tx.prediction === 'BLOCK' ? 'rgba(255, 75, 75, 0.1)' : tx.prediction === 'STEP-UP AUTH' ? 'rgba(255, 184, 0, 0.1)' : 'rgba(44, 160, 44, 0.1)', 
+                          color: tx.prediction === 'BLOCK' ? '#FF4B4B' : tx.prediction === 'STEP-UP AUTH' ? '#FFB800' : '#2ca02c' 
+                        }}>
                           {tx.prediction}
                         </span>
                       </td>
@@ -389,7 +434,7 @@ function App() {
               <h3 style={{ color: '#FAFAFA', marginBottom: '20px' }}>Fraud Rate Overview</h3>
               <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '30px' }}>
                 <div style={{ fontSize: '3rem', fontWeight: 'bold', color: '#FF4B4B' }}>{fraudRate}%</div>
-                <div style={{ color: '#A0AABF' }}>of recent transactions<br/>were flagged as fraud</div>
+                <div style={{ color: '#A0AABF' }}>of recent transactions<br/>were blocked</div>
               </div>
               <div style={{ width: '100%', height: '20px', background: '#1E232E', borderRadius: '10px', overflow: 'hidden', display: 'flex' }}>
                 <div style={{ width: `${fraudRate}%`, background: '#FF4B4B' }}></div>
@@ -427,7 +472,7 @@ function App() {
             <div style={{ maxHeight: '400px', overflowY: 'auto', background: '#0E1117', padding: '15px', borderRadius: '8px', border: '1px solid #2E3A4E' }}>
               {auditLogs.length > 0 ? auditLogs.map((log, i) => (
                 <div key={i} style={{ fontSize: '0.9rem', borderBottom: '1px solid #1E232E', paddingBottom: '10px', marginBottom: '10px', color: '#FAFAFA' }}>
-                  <span style={{ color: log.prediction === 'FRAUD DETECTED' ? '#FF4B4B' : '#2ca02c', fontWeight: 'bold' }}>{log.prediction}</span> - ${log.amount} ({log.card_network}: {log.card_number}) <br/>
+                  <span style={{ color: log.prediction === 'BLOCK' ? '#FF4B4B' : log.prediction === 'STEP-UP AUTH' ? '#FFB800' : '#2ca02c', fontWeight: 'bold' }}>{log.prediction}</span> - ${log.amount} ({log.card_network}: {log.card_number}) <br/>
                   <span style={{ color: '#A0AABF', fontSize: '0.8rem' }}>Model: v{log.model_version} | {new Date(log.timestamp).toLocaleString()}</span>
                 </div>
               )) : <p style={{ color: '#A0AABF' }}>No audit logs yet. Run a prediction!</p>}
