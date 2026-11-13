@@ -10,7 +10,10 @@ function App() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [authError, setAuthError] = useState('');
 
-  // --- Prediction State ---
+  // --- App State ---
+  const [activeTab, setActiveTab] = useState('dashboard'); // Controls sidebar navigation
+  
+  // --- Prediction State —
   const [cardNetwork, setCardNetwork] = useState('Unknown');
   const [cardNumber, setCardNumber] = useState('');
   const [amount, setAmount] = useState('');
@@ -101,6 +104,7 @@ function App() {
           const data = await res.json();
           setToken(data.access_token);
           setRole(data.role);
+          setActiveTab('dashboard');
         } else {
           setAuthError("Invalid username or password");
         }
@@ -111,7 +115,7 @@ function App() {
   };
 
   const handleLogout = () => {
-    setToken(''); setRole('teller'); setResult(null); setHistory([]); setDriftData(null); setAuditLogs([]);
+    setToken(''); setRole('teller'); setResult(null); setHistory([]); setDriftData(null); setAuditLogs([]); setActiveTab('dashboard');
   };
 
   // --- Helpers ---
@@ -174,7 +178,7 @@ function App() {
       <div className="app-container">
         <div className="header">
           <h1>🏦 Secure Bank Portal</h1>
-          <p>Employee Authentication</p >
+          <p>Employee Authentication</p>
         </div>
         <div className="card" style={{ maxWidth: '400px', margin: '0 auto' }}>
           <form onSubmit={handleAuth}>
@@ -197,16 +201,17 @@ function App() {
           
           <p style={{ marginTop: '20px', textAlign: 'center', cursor: 'pointer', color: '#4DB8FF' }} onClick={() => setIsRegistering(!isRegistering)}>
             {isRegistering ? 'Already have an account? Login' : 'Need an account? Register'}
-          </p >
+          </p>
         </div>
       </div>
     );
   }
 
-  // --- Calculate KPIs for Dashboard ---
+  // --- Calculate KPIs ---
   const totalAnalyzed = history.length;
   const fraudCount = history.filter(tx => tx.prediction === 'FRAUD DETECTED').length;
   const safeCount = totalAnalyzed - fraudCount;
+  const fraudRate = totalAnalyzed > 0 ? ((fraudCount / totalAnalyzed) * 100).toFixed(1) : 0;
 
   // --- Render Dashboard ---
   return (
@@ -216,10 +221,14 @@ function App() {
         <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#4DB8FF', marginBottom: '20px' }}>
           ⚡ FraudShield AI
         </div>
-        <div className="nav-item active">Dashboard</div>
-        <div className="nav-item">Transactions</div>
-        <div className="nav-item">Risk Analytics</div>
-        {role === 'admin' && <div className="nav-item">Admin Settings</div>}
+        
+        <div className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>Dashboard</div>
+        <div className={`nav-item ${activeTab === 'transactions' ? 'active' : ''}`} onClick={() => setActiveTab('transactions')}>Transactions</div>
+        <div className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')}>Risk Analytics</div>
+        
+        {role === 'admin' && (
+          <div className={`nav-item ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => setActiveTab('admin')}>Admin Settings</div>
+        )}
         
         <div style={{ marginTop: 'auto' }}>
           <div className="nav-item" onClick={handleLogout} style={{ color: '#FF4B4B' }}>
@@ -232,96 +241,116 @@ function App() {
       <div className="main-content">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h1 style={{ margin: 0, color: '#FAFAFA' }}>Dashboard Overview</h1>
-            <p style={{ color: '#A0AABF', margin: '5px 0 0 0' }}>Real-time transaction analysis</p >
+            <h1 style={{ margin: 0, color: '#FAFAFA' }}>
+              {activeTab === 'dashboard' && 'Dashboard Overview'}
+              {activeTab === 'transactions' && 'All Transactions'}
+              {activeTab === 'analytics' && 'Risk Analytics'}
+              {activeTab === 'admin' && 'Admin Settings'}
+            </h1>
+            <p style={{ color: '#A0AABF', margin: '5px 0 0 0' }}>Real-time transaction analysis</p>
           </div>
           <div style={{ color: '#4DB8FF', fontWeight: 'bold' }}>
             Role: {role.toUpperCase()}
           </div>
         </div>
 
-        {/* KPI CARDS */}
-        <div className="kpi-grid">
-          <div className="kpi-card">
-            <span className="kpi-title">Total Analyzed</span>
-            <span className="kpi-value">{totalAnalyzed}</span>
-          </div>
-          <div className="kpi-card">
-            <span className="kpi-title">Fraud Detected</span>
-            <span className="kpi-value danger">{fraudCount}</span>
-          </div>
-          <div className="kpi-card">
-            <span className="kpi-title">Safe Transactions</span>
-            <span className="kpi-value success">{safeCount}</span>
-          </div>
-        </div>
-
-        {/* ADMIN SECTION (If admin) */}
-        {role === 'admin' && driftData && (
-          <div className="dashboard-card" style={{ borderColor: driftData.drift_detected ? '#FF4B4B' : '#2ca02c' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-              <h3 style={{ margin: 0, color: driftData.drift_detected ? '#FF4B4B' : '#2ca02c' }}>{driftData.message}</h3>
-              <button onClick={triggerRetrain} disabled={retraining} className="primary-btn" style={{ padding: '8px 15px', fontSize: '0.9rem' }}>
-                {retraining ? 'Retraining...' : '🔄 Retrain Model'}
-              </button>
-            </div>
-            {driftData.recent_average_amount !== undefined && (
-              <div style={{ display: 'flex', gap: '20px', fontSize: '0.9rem', color: '#FAFAFA' }}>
-                <span>Recent Avg: <strong>${driftData.recent_average_amount}</strong></span>
-                <span>Baseline Avg: <strong>${driftData.baseline_average_amount}</strong></span>
+        {/* --- TAB: DASHBOARD --- */}
+        {activeTab === 'dashboard' && (
+          <>
+            <div className="kpi-grid">
+              <div className="kpi-card">
+                <span className="kpi-title">Total Analyzed</span>
+                <span className="kpi-value">{totalAnalyzed}</span>
               </div>
-            )}
-          </div>
+              <div className="kpi-card">
+                <span className="kpi-title">Fraud Detected</span>
+                <span className="kpi-value danger">{fraudCount}</span>
+              </div>
+              <div className="kpi-card">
+                <span className="kpi-title">Safe Transactions</span>
+                <span className="kpi-value success">{safeCount}</span>
+              </div>
+            </div>
+
+            <div className="workspace-grid">
+              {/* Form */}
+              <div className="dashboard-card">
+                <h3 style={{ marginBottom: '20px', color: '#FAFAFA' }}>Analyze New Transaction</h3>
+                <form onSubmit={handlePredict}>
+                  <div className="form-group">
+                    <label style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Card Number</span>
+                      {cardNumber.length >= 1 && (
+                        <span style={{ color: '#4DB8FF', fontWeight: 'bold', fontSize: '0.8rem' }}>{detectCardNetwork(cardNumber)}</span>
+                      )}
+                    </label>
+                    <input type="text" value={cardNumber} onChange={(e) => { setCardNumber(e.target.value); setCardNetwork(detectCardNetwork(e.target.value)); }} placeholder="4242..." required />
+                  </div>
+                  <div className="form-group">
+                    <label>Amount ($)</label>
+                    <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 4500" min="0.01" step="0.01" required />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div className="form-group">
+                      <label>Hour (0-23)</label>
+                      <input type="number" value={hour} onChange={(e) => setHour(e.target.value)} placeholder="e.g. 2" min="0" max="23" required />
+                    </div>
+                    <div className="form-group">
+                      <label>User Age</label>
+                      <input type="number" value={age} onChange={(e) => setAge(e.target.value)} placeholder="e.g. 25" min="18" max="120" required />
+                    </div>
+                  </div>
+                  <div className="checkbox-group" style={{ marginBottom: '20px' }}>
+                    <input type="checkbox" checked={isInternational} onChange={(e) => setIsInternational(e.target.checked)} />
+                    <label>International Transaction</label>
+                  </div>
+                  <button type="submit" disabled={loading} style={{ width: '100%' }}>{loading ? 'Analyzing...' : 'Analyze Transaction'}</button>
+                </form>
+
+                {result && (
+                  <div className={`result-box ${result.prediction === 'FRAUD DETECTED' ? 'result-fraud' : 'result-safe'}`} style={{ marginTop: '20px' }}>
+                    <h2 style={{ margin: 0 }}>{result.prediction}</h2>
+                    <p style={{ margin: '5px 0' }}>Confidence: {result.fraud_probability}%</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Mini Table */}
+              <div className="dashboard-card">
+                <h3 style={{ marginBottom: '20px', color: '#FAFAFA' }}>Recent Transactions</h3>
+                {history.length > 0 ? (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #2E3A4E', color: '#A0AABF' }}>
+                        <th style={{ padding: '10px' }}>Card</th>
+                        <th style={{ padding: '10px' }}>Amount</th>
+                        <th style={{ padding: '10px' }}>Result</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {history.slice(0, 5).map((tx, index) => (
+                        <tr key={index} className="table-row-hover" style={{ borderBottom: '1px solid #1E232E', color: '#FAFAFA' }}>
+                          <td style={{ padding: '15px 10px' }}>{tx.card_network} (...{tx.card_number.slice(-4)})</td>
+                          <td style={{ padding: '15px 10px' }}>${tx.amount}</td>
+                          <td style={{ padding: '15px 10px' }}>
+                            <span style={{ padding: '5px 10px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 'bold', background: tx.prediction === 'FRAUD DETECTED' ? 'rgba(255, 75, 75, 0.1)' : 'rgba(44, 160, 44, 0.1)', color: tx.prediction === 'FRAUD DETECTED' ? '#FF4B4B' : '#2ca02c' }}>
+                              {tx.prediction}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : <p style={{ textAlign: 'center', color: '#A0AABF', marginTop: '30px' }}>No recent transactions.</p>}
+              </div>
+            </div>
+          </>
         )}
 
-        {/* WORKSPACE GRID (Form + Table) */}
-        <div className="workspace-grid">
-          
-          {/* LEFT COL: FORM */}
+        {/* --- TAB: TRANSACTIONS --- */}
+        {activeTab === 'transactions' && (
           <div className="dashboard-card">
-            <h3 style={{ marginBottom: '20px', color: '#FAFAFA' }}>Analyze New Transaction</h3>
-            <form onSubmit={handlePredict}>
-              <div className="form-group">
-                <label style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Card Number</span>
-                  {cardNumber.length >= 1 && (
-                    <span style={{ color: '#4DB8FF', fontWeight: 'bold', fontSize: '0.8rem' }}>{detectCardNetwork(cardNumber)}</span>
-                  )}
-                </label>
-                <input type="text" value={cardNumber} onChange={(e) => { setCardNumber(e.target.value); setCardNetwork(detectCardNetwork(e.target.value)); }} placeholder="4242..." required />
-              </div>
-              <div className="form-group">
-                <label>Amount ($)</label>
-                <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 4500" min="0.01" step="0.01" required />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <div className="form-group">
-                  <label>Hour (0-23)</label>
-                  <input type="number" value={hour} onChange={(e) => setHour(e.target.value)} placeholder="e.g. 2" min="0" max="23" required />
-                </div>
-                <div className="form-group">
-                  <label>User Age</label>
-                  <input type="number" value={age} onChange={(e) => setAge(e.target.value)} placeholder="e.g. 25" min="18" max="120" required />
-                </div>
-              </div>
-              <div className="checkbox-group" style={{ marginBottom: '20px' }}>
-                <input type="checkbox" checked={isInternational} onChange={(e) => setIsInternational(e.target.checked)} />
-                <label>International Transaction</label>
-              </div>
-              <button type="submit" disabled={loading} style={{ width: '100%' }}>{loading ? 'Analyzing...' : 'Analyze Transaction'}</button>
-            </form>
-
-            {result && (
-              <div className={`result-box ${result.prediction === 'FRAUD DETECTED' ? 'result-fraud' : 'result-safe'}`} style={{ marginTop: '20px' }}>
-                <h2 style={{ margin: 0 }}>{result.prediction}</h2>
-                <p style={{ margin: '5px 0' }}>Confidence: {result.fraud_probability}%</p >
-              </div>
-            )}
-          </div>
-
-          {/* RIGHT COL: HISTORY TABLE */}
-          <div className="dashboard-card">
-            <h3 style={{ marginBottom: '20px', color: '#FAFAFA' }}>Recent Transactions</h3>
+            <h3 style={{ marginBottom: '20px', color: '#FAFAFA' }}>Full Transaction History</h3>
             {history.length > 0 ? (
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
                 <thead>
@@ -341,11 +370,7 @@ function App() {
                         {tx.hour_of_day === 0 ? '12:00 AM' : tx.hour_of_day === 12 ? '12:00 PM' : tx.hour_of_day > 12 ? `${tx.hour_of_day - 12}:00 PM` : `${tx.hour_of_day}:00 AM`}
                       </td>
                       <td style={{ padding: '15px 10px' }}>
-                        <span style={{ 
-                          padding: '5px 10px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 'bold',
-                          background: tx.prediction === 'FRAUD DETECTED' ? 'rgba(255, 75, 75, 0.1)' : 'rgba(44, 160, 44, 0.1)',
-                          color: tx.prediction === 'FRAUD DETECTED' ? '#FF4B4B' : '#2ca02c'
-                        }}>
+                        <span style={{ padding: '5px 10px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 'bold', background: tx.prediction === 'FRAUD DETECTED' ? 'rgba(255, 75, 75, 0.1)' : 'rgba(44, 160, 44, 0.1)', color: tx.prediction === 'FRAUD DETECTED' ? '#FF4B4B' : '#2ca02c' }}>
                           {tx.prediction}
                         </span>
                       </td>
@@ -353,12 +378,63 @@ function App() {
                   ))}
                 </tbody>
               </table>
-            ) : (
-              <p style={{ textAlign: 'center', color: '#A0AABF', marginTop: '30px' }}>No transactions analyzed yet.</p >
+            ) : <p style={{ textAlign: 'center', color: '#A0AABF', marginTop: '30px' }}>No transactions analyzed yet.</p>}
+          </div>
+        )}
+
+        {/* --- TAB: RISK ANALYTICS --- */}
+        {activeTab === 'analytics' && (
+          <div className="workspace-grid">
+            <div className="dashboard-card">
+              <h3 style={{ color: '#FAFAFA', marginBottom: '20px' }}>Fraud Rate Overview</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '30px' }}>
+                <div style={{ fontSize: '3rem', fontWeight: 'bold', color: '#FF4B4B' }}>{fraudRate}%</div>
+                <div style={{ color: '#A0AABF' }}>of recent transactions<br/>were flagged as fraud</div>
+              </div>
+              <div style={{ width: '100%', height: '20px', background: '#1E232E', borderRadius: '10px', overflow: 'hidden', display: 'flex' }}>
+                <div style={{ width: `${fraudRate}%`, background: '#FF4B4B' }}></div>
+                <div style={{ width: `${100 - fraudRate}%`, background: '#2ca02c' }}></div>
+              </div>
+            </div>
+
+            {/* Admin Drift Monitor moved here */}
+            {role === 'admin' && driftData && (
+              <div className="dashboard-card" style={{ borderColor: driftData.drift_detected ? '#FF4B4B' : '#2ca02c' }}>
+                <h3 style={{ margin: '0 0 15px 0', color: driftData.drift_detected ? '#FF4B4B' : '#2ca02c' }}>Model Drift Monitor</h3>
+                <p style={{ color: '#FAFAFA', marginBottom: '15px' }}>{driftData.message}</p>
+                {driftData.recent_average_amount !== undefined && (
+                  <div style={{ display: 'flex', gap: '20px', fontSize: '0.9rem', color: '#A0AABF' }}>
+                    <span>Recent Avg: <strong>${driftData.recent_average_amount}</strong></span>
+                    <span>Baseline Avg: <strong>${driftData.baseline_average_amount}</strong></span>
+                  </div>
+                )}
+              </div>
             )}
           </div>
+        )}
 
-        </div>
+        {/* --- TAB: ADMIN SETTINGS --- */}
+        {activeTab === 'admin' && role === 'admin' && (
+          <div className="dashboard-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ color: '#FAFAFA', margin: 0 }}>MLOps Model Management</h3>
+              <button onClick={triggerRetrain} disabled={retraining} className="primary-btn" style={{ width: 'auto', padding: '10px 20px', fontSize: '0.9rem' }}>
+                {retraining ? 'Retraining...' : '🔄 Retrain AI Model'}
+              </button>
+            </div>
+            
+            <h4 style={{ color: '#A0AABF', marginBottom: '10px' }}>Immutable Audit Trail (Regulatory Compliance)</h4>
+            <div style={{ maxHeight: '400px', overflowY: 'auto', background: '#0E1117', padding: '15px', borderRadius: '8px', border: '1px solid #2E3A4E' }}>
+              {auditLogs.length > 0 ? auditLogs.map((log, i) => (
+                <div key={i} style={{ fontSize: '0.9rem', borderBottom: '1px solid #1E232E', paddingBottom: '10px', marginBottom: '10px', color: '#FAFAFA' }}>
+                  <span style={{ color: log.prediction === 'FRAUD DETECTED' ? '#FF4B4B' : '#2ca02c', fontWeight: 'bold' }}>{log.prediction}</span> - ${log.amount} ({log.card_network}: {log.card_number}) <br/>
+                  <span style={{ color: '#A0AABF', fontSize: '0.8rem' }}>Model: v{log.model_version} | {new Date(log.timestamp).toLocaleString()}</span>
+                </div>
+              )) : <p style={{ color: '#A0AABF' }}>No audit logs yet. Run a prediction!</p>}
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
