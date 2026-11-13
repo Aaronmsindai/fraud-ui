@@ -66,39 +66,60 @@ function App() {
     }
   }, [token, role]);
 
-  // --- Auth Handlers ---
+  // --- Auth Handlers (With Safe Error Handling & Validation) ---
   const handleAuth = async (e) => {
     e.preventDefault();
     setAuthError('');
     
-    if (isRegistering) {
-      const res = await fetch(`${API_URL}/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-      if (res.ok) {
-        alert("Registration successful! Please log in.");
-        setIsRegistering(false);
-      } else {
-        const data = await res.json();
-        // Handle Pydantic validation errors (422)
-        if (Array.isArray(data.detail)) {
-          setAuthError(data.detail[0].msg);
+    try {
+      if (isRegistering) {
+        // Frontend validation check before sending
+        if (!/^[a-zA-Z]/.test(username)) {
+          setAuthError("Username must start with a letter.");
+          return;
+        }
+        if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(username)) {
+          setAuthError("Username can only contain letters, numbers, and underscores.");
+          return;
+        }
+
+        const res = await fetch(`${API_URL}/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        });
+        
+        if (res.ok) {
+          alert("Registration successful! Please log in.");
+          setIsRegistering(false);
         } else {
-          setAuthError(data.detail || "Registration failed");
+          const data = await res.json();
+          // Handle Pydantic validation errors safely
+          if (Array.isArray(data.detail)) {
+            setAuthError(data.detail[0].msg);
+          } else if (typeof data.detail === 'object') {
+            setAuthError("Validation error. Please check your inputs.");
+          } else {
+            setAuthError(data.detail || "Registration failed");
+          }
+        }
+      } else {
+        const formData = new URLSearchParams();
+        formData.append('username', username);
+        formData.append('password', password);
+        const res = await fetch(`${API_URL}/login`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: formData });
+        
+        if (res.ok) {
+          const data = await res.json();
+          setToken(data.access_token);
+          setRole(data.role);
+        } else {
+          setAuthError("Invalid username or password");
         }
       }
-    } else {
-      const formData = new URLSearchParams();
-      formData.append('username', username);
-      formData.append('password', password);
-      const res = await fetch(`${API_URL}/login`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: formData });
-      if (res.ok) {
-        const data = await res.json();
-        setToken(data.access_token);
-        setRole(data.role);
-      } else { setAuthError("Invalid username or password"); }
+    } catch (error) {
+      console.error(error);
+      setAuthError("Failed to connect to the server. It may be waking up. Please try again.");
     }
   };
 
@@ -162,7 +183,7 @@ function App() {
       <div className="app-container">
         <div className="header">
           <h1>🏦 Secure Bank Portal</h1>
-          <p>Employee Authentication</p >
+          <p>Employee Authentication</p>
         </div>
         <div className="card">
           <form onSubmit={handleAuth}>
@@ -190,7 +211,7 @@ function App() {
           
           <p style={{ marginTop: '20px', textAlign: 'center', cursor: 'pointer', color: '#4DB8FF' }} onClick={() => setIsRegistering(!isRegistering)}>
             {isRegistering ? 'Already have an account? Login' : 'Need an account? Register'}
-          </p >
+          </p>
         </div>
       </div>
     );
@@ -202,7 +223,7 @@ function App() {
       <div className="header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', maxWidth: '600px' }}>
         <div>
           <h1>🚨 Fraud Detection Portal</h1>
-          <p>Banking Transaction Real-Time Analysis</p >
+          <p>Banking Transaction Real-Time Analysis</p>
         </div>
         <button onClick={handleLogout} style={{ width: 'auto', padding: '10px 20px', background: 'transparent', border: '1px solid #FF4B4B', color: '#FF4B4B', cursor: 'pointer', borderRadius: '8px' }}>Logout</button>
       </div>
@@ -230,13 +251,13 @@ function App() {
               </button>
             </div>
             <div style={{ maxHeight: '200px', overflowY: 'auto', background: '#1E232E', padding: '15px', borderRadius: '8px', border: '1px solid #2E3A4E' }}>
-              <p style={{ fontSize: '0.85rem', color: '#A0AABF', marginBottom: '10px', fontWeight: 'bold' }}>Immutable Audit Trail (Regulatory Compliance)</p >
+              <p style={{ fontSize: '0.85rem', color: '#A0AABF', marginBottom: '10px', fontWeight: 'bold' }}>Immutable Audit Trail (Regulatory Compliance)</p>
               {auditLogs.length > 0 ? auditLogs.map((log, i) => (
                 <div key={i} style={{ fontSize: '0.85rem', borderBottom: '1px solid #2E3A4E', paddingBottom: '8px', marginBottom: '8px', color: '#FAFAFA' }}>
                   <span style={{ color: log.prediction === 'FRAUD DETECTED' ? '#FF4B4B' : '#2ca02c', fontWeight: 'bold' }}>{log.prediction}</span> - ${log.amount} ({log.card_network}: {log.card_number}) <br/>
                   <span style={{ color: '#A0AABF', fontSize: '0.8rem' }}>Model: v{log.model_version} | {new Date(log.timestamp).toLocaleString()}</span>
                 </div>
-              )) : <p style={{ color: '#A0AABF', fontSize: '0.85rem' }}>No audit logs yet. Run a prediction!</p >}
+              )) : <p style={{ color: '#A0AABF', fontSize: '0.85rem' }}>No audit logs yet. Run a prediction!</p>}
             </div>
           </div>
         </>
@@ -282,8 +303,8 @@ function App() {
         {result && (
           <div className={`result-box ${result.prediction === 'FRAUD DETECTED' ? 'result-fraud' : 'result-safe'}`}>
             <h2>{result.prediction}</h2>
-            <p>Confidence: <strong>{result.fraud_probability}%</strong></p >
-            <p style={{ fontSize: '0.9rem', marginTop: '10px', opacity: 0.8 }}>Recorded at: {new Date(result.timestamp).toLocaleString()}</p >
+            <p>Confidence: <strong>{result.fraud_probability}%</strong></p>
+            <p style={{ fontSize: '0.9rem', marginTop: '10px', opacity: 0.8 }}>Recorded at: {new Date(result.timestamp).toLocaleString()}</p>
             {result.risk_factors && Object.keys(result.risk_factors).length > 0 && (
               <div style={{ marginTop: '15px', padding: '15px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', textAlign: 'left' }}>
                 <h4 style={{ color: result.prediction === 'FRAUD DETECTED' ? '#FF4B4B' : '#2ca02c', marginBottom: '10px', fontSize: '1rem' }}>{result.prediction === 'FRAUD DETECTED' ? '🚨 Why was this flagged?' : '✅ Key decision factors'}</h4>
@@ -314,7 +335,7 @@ function App() {
               </tbody>
             </table>
           </div>
-        ) : <p style={{ marginTop: '30px', textAlign: 'center', color: '#A0AABF' }}>No transaction history yet. Run a prediction above!</p >}
+        ) : <p style={{ marginTop: '30px', textAlign: 'center', color: '#A0AABF' }}>No transaction history yet. Run a prediction above!</p>}
       </div>
     </div>
   );
