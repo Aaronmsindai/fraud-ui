@@ -178,10 +178,10 @@ function App() {
       isValid = false;
     }
 
-    // 4. Age
+    // 4. Age (Updated to 100)
     const ageNum = parseInt(age);
-    if (isNaN(ageNum) || ageNum < 18 || ageNum > 120) {
-      errors.age = "Age must be between 18 and 120.";
+    if (isNaN(ageNum) || ageNum < 18 || ageNum > 100) {
+      errors.age = "Age must be between 18 and 100.";
       isValid = false;
     }
 
@@ -404,6 +404,7 @@ function App() {
                           if (formErrors.age) setFormErrors({...formErrors, age: ''});
                         }} 
                         placeholder="e.g. 25" 
+                        max="100"
                         style={{ borderColor: formErrors.age ? '#FF4B4B' : '' }}
                       />
                       {formErrors.age && <span style={{ color: '#FF4B4B', fontSize: '0.8rem', marginTop: '5px' }}>{formErrors.age}</span>}
