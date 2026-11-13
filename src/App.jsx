@@ -20,11 +20,15 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
+  
+  // --- Admin State ---
   const [driftData, setDriftData] = useState(null);
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [retraining, setRetraining] = useState(false);
 
   const API_URL = 'https://fraud-detection-api-71aw.onrender.com';
 
-  // --- Fetch History Function ---
+  // --- Fetch Functions ---
   const fetchHistory = async () => {
     try {
       const res = await fetch(`${API_URL}/history`, {
@@ -39,7 +43,6 @@ function App() {
     }
   };
 
-  // --- Fetch Drift Data (Admin Only) ---
   const fetchDrift = async () => {
     try {
       const res = await fetch(`${API_URL}/admin/drift`, {
@@ -54,11 +57,43 @@ function App() {
     }
   };
 
+  const fetchAuditLogs = async () => {
+    try {
+      const res = await fetch(`${API_URL}/admin/audit`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAuditLogs(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch audit logs", error);
+    }
+  };
+
+  const triggerRetrain = async () => {
+    setRetraining(true);
+    try {
+      const res = await fetch(`${API_URL}/admin/retrain`, { 
+        method: 'POST', 
+        headers: { 'Authorization': `Bearer ${token}` } 
+      });
+      const data = await res.json();
+      alert(data.message);
+      fetchAuditLogs(); 
+    } catch (error) {
+      console.error("Retrain failed", error);
+    } finally {
+      setRetraining(false);
+    }
+  };
+
   useEffect(() => {
     if (token) {
       fetchHistory();
       if (role === 'admin') {
         fetchDrift();
+        fetchAuditLogs();
       }
     }
   }, [token, role]);
@@ -108,6 +143,7 @@ function App() {
     setResult(null);
     setHistory([]);
     setDriftData(null);
+    setAuditLogs([]);
   };
 
   // --- Handle Prediction ---
@@ -143,7 +179,10 @@ function App() {
       const data = await response.json();
       setResult(data);
       fetchHistory(); 
-      if (role === 'admin') fetchDrift();
+      if (role === 'admin') {
+        fetchDrift();
+        fetchAuditLogs();
+      }
     } catch (error) {
       console.error(error);
       alert("Failed to connect to the API. Is the server awake?");
@@ -200,25 +239,49 @@ function App() {
         </button>
       </div>
 
-      {/* --- ADMIN DRIFT MONITOR --- */}
-      {role === 'admin' && driftData && (
-        <div style={{ 
-          width: '100%', maxWidth: '600px', marginBottom: '20px', padding: '15px', borderRadius: '8px',
-          background: driftData.drift_detected ? 'rgba(255, 75, 75, 0.2)' : 'rgba(44, 160, 44, 0.2)',
-          border: `1px solid ${driftData.drift_detected ? '#FF4B4B' : '#2ca02c'}`
-        }}>
-          <h3 style={{ color: driftData.drift_detected ? '#FF4B4B' : '#2ca02c', margin: '0 0 10px 0' }}>
-            {driftData.message}
-          </h3>
-          
-          {driftData.recent_average_amount !== undefined && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: '#FAFAFA' }}>
-              <span>Recent Avg: <strong>${driftData.recent_average_amount}</strong></span>
-              <span>Baseline Avg: <strong>${driftData.baseline_average_amount}</strong></span>
-              <span>Fraud Rate: <strong>{driftData.recent_fraud_rate_percentage}%</strong></span>
+      {/* --- ADMIN DRIFT MONITOR & CONTROL CENTER --- */}
+      {role === 'admin' && (
+        <>
+          {driftData && (
+            <div style={{ 
+              width: '100%', maxWidth: '600px', marginBottom: '20px', padding: '15px', borderRadius: '8px',
+              background: driftData.drift_detected ? 'rgba(255, 75, 75, 0.2)' : 'rgba(44, 160, 44, 0.2)',
+              border: `1px solid ${driftData.drift_detected ? '#FF4B4B' : '#2ca02c'}`
+            }}>
+              <h3 style={{ color: driftData.drift_detected ? '#FF4B4B' : '#2ca02c', margin: '0 0 10px 0' }}>
+                {driftData.message}
+              </h3>
+              {driftData.recent_average_amount !== undefined && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: '#FAFAFA' }}>
+                  <span>Recent Avg: <strong>${driftData.recent_average_amount}</strong></span>
+                  <span>Baseline Avg: <strong>${driftData.baseline_average_amount}</strong></span>
+                  <span>Fraud Rate: <strong>{driftData.recent_fraud_rate_percentage}%</strong></span>
+                </div>
+              )}
             </div>
           )}
-        </div>
+
+          <div style={{ width: '100%', maxWidth: '600px', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <h3 style={{ color: '#4DB8FF', margin: 0 }}>Admin Control Center</h3>
+              <button onClick={triggerRetrain} disabled={retraining} style={{ width: 'auto', padding: '8px 15px', fontSize: '0.9rem', background: '#4DB8FF', color: '#000', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>
+                {retraining ? 'Retraining...' : '🔄 Retrain AI Model'}
+              </button>
+            </div>
+            
+            <div style={{ maxHeight: '200px', overflowY: 'auto', background: '#1E232E', padding: '15px', borderRadius: '8px', border: '1px solid #2E3A4E' }}>
+              <p style={{ fontSize: '0.85rem', color: '#A0AABF', marginBottom: '10px', fontWeight: 'bold' }}>Immutable Audit Trail (Regulatory Compliance)</p >
+              {auditLogs.length > 0 ? auditLogs.map((log, i) => (
+                <div key={i} style={{ fontSize: '0.85rem', borderBottom: '1px solid #2E3A4E', paddingBottom: '8px', marginBottom: '8px', color: '#FAFAFA' }}>
+                  <span style={{ color: log.prediction === 'FRAUD DETECTED' ? '#FF4B4B' : '#2ca02c', fontWeight: 'bold' }}>{log.prediction}</span> - ${log.amount} (Card: {log.card_number}) <br/>
+                  <span style={{ color: '#A0AABF', fontSize: '0.8rem' }}>Model: v{log.model_version} | {new Date(log.timestamp).toLocaleString()}</span>
+                </div>
+              )) : (
+                <p style={{ color: '#A0AABF', fontSize: '0.85rem' }}>No audit logs yet. Run a prediction!</p >
+              )}
+            </div>
+          </div>
+        </>
       )}
 
       <div className="card">
