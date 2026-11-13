@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react'; // <--- ADDED THIS IMPORT
 import './App.css';
 
 function App() {
@@ -76,7 +76,7 @@ function App() {
     }
   }, [token, role]);
 
-  // --- Auth Handlers ---
+  // --- Auth Handlers (With Detailed Error Catching) ---
   const handleAuth = async (e) => {
     e.preventDefault();
     setAuthError('');
@@ -113,11 +113,17 @@ function App() {
           setRole(data.role);
           setActiveTab('dashboard');
         } else {
-          setAuthError("Invalid username or password");
+          // CATCH THE REAL LOGIN ERROR
+          const errorData = await res.json();
+          let errorMsg = "Invalid username or password";
+          if (errorData.detail) {
+             errorMsg = Array.isArray(errorData.detail) ? errorData.detail[0].msg : errorData.detail;
+          }
+          setAuthError(errorMsg);
         }
       }
     } catch (error) {
-      setAuthError("Failed to connect to the server.");
+      setAuthError("Failed to connect to the server. It may be waking up.");
     }
   };
 
