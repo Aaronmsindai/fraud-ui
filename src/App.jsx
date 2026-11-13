@@ -4,7 +4,7 @@ import './App.css';
 function App() {
   // --- Authentication State ---
   const [token, setToken] = useState(''); 
-  const [role, setRole] = useState('teller'); // <--- ADDED ROLE STATE
+  const [role, setRole] = useState('teller');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
@@ -20,7 +20,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
-  const [driftData, setDriftData] = useState(null); // <--- ADDED DRIFT STATE
+  const [driftData, setDriftData] = useState(null);
 
   const API_URL = 'https://fraud-detection-api-71aw.onrender.com';
 
@@ -95,7 +95,7 @@ function App() {
       if (res.ok) {
         const data = await res.json();
         setToken(data.access_token);
-        setRole(data.role); // <--- SAVE ROLE ON LOGIN
+        setRole(data.role);
       } else {
         setAuthError("Invalid username or password");
       }
@@ -143,7 +143,7 @@ function App() {
       const data = await response.json();
       setResult(data);
       fetchHistory(); 
-      if (role === 'admin') fetchDrift(); // Refresh drift on new data
+      if (role === 'admin') fetchDrift();
     } catch (error) {
       console.error(error);
       alert("Failed to connect to the API. Is the server awake?");
@@ -210,11 +210,14 @@ function App() {
           <h3 style={{ color: driftData.drift_detected ? '#FF4B4B' : '#2ca02c', margin: '0 0 10px 0' }}>
             {driftData.message}
           </h3>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: '#FAFAFA' }}>
-            <span>Recent Avg: <strong>${driftData.recent_average_amount}</strong></span>
-            <span>Baseline Avg: <strong>${driftData.baseline_average_amount}</strong></span>
-            <span>Fraud Rate: <strong>{driftData.recent_fraud_rate_percentage}%</strong></span>
-          </div>
+          
+          {driftData.recent_average_amount !== undefined && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: '#FAFAFA' }}>
+              <span>Recent Avg: <strong>${driftData.recent_average_amount}</strong></span>
+              <span>Baseline Avg: <strong>${driftData.baseline_average_amount}</strong></span>
+              <span>Fraud Rate: <strong>{driftData.recent_fraud_rate_percentage}%</strong></span>
+            </div>
+          )}
         </div>
       )}
 
