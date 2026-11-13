@@ -11,7 +11,7 @@ function App() {
   const [authError, setAuthError] = useState('');
 
   // --- Prediction State ---
-  const [cardNetwork, setCardNetwork] = useState('Visa');
+  const [cardNetwork, setCardNetwork] = useState('Unknown'); // Auto-detected
   const [cardNumber, setCardNumber] = useState('');
   const [amount, setAmount] = useState('');
   const [hour, setHour] = useState('');
@@ -66,14 +66,13 @@ function App() {
     }
   }, [token, role]);
 
-  // --- Auth Handlers (With Safe Error Handling & Validation) ---
+  // --- Auth Handlers ---
   const handleAuth = async (e) => {
     e.preventDefault();
     setAuthError('');
     
     try {
       if (isRegistering) {
-        // Frontend validation check before sending
         if (!/^[a-zA-Z]/.test(username)) {
           setAuthError("Username must start with a letter.");
           return;
@@ -94,7 +93,6 @@ function App() {
           setIsRegistering(false);
         } else {
           const data = await res.json();
-          // Handle Pydantic validation errors safely
           if (Array.isArray(data.detail)) {
             setAuthError(data.detail[0].msg);
           } else if (typeof data.detail === 'object') {
@@ -125,6 +123,18 @@ function App() {
 
   const handleLogout = () => {
     setToken(''); setRole('teller'); setResult(null); setHistory([]); setDriftData(null); setAuditLogs([]);
+  };
+
+  // --- BIN Detection (Frontend) ---
+  const detectCardNetwork = (number) => {
+    const clean = number.replace(/[\s-]/g, '');
+    if (/^4/.test(clean)) return "Visa";
+    if (/^(5[1-5]|2[2-7])/.test(clean)) return "Mastercard";
+    if (/^3[47]/.test(clean)) return "American Express";
+    if (/^62/.test(clean)) return "UnionPay";
+    if (/^(6011|65|64[4-9])/.test(clean)) return "Discover";
+    if (/^35/.test(clean)) return "JCB";
+    return "Unknown";
   };
 
   // --- Luhn Algorithm (Frontend Check) ---
@@ -265,20 +275,28 @@ function App() {
 
       <div className="card">
         <form onSubmit={handlePredict}>
-          {/* Card Network Selector */}
           <div className="form-group">
-            <label>Card Network</label>
-            <select value={cardNetwork} onChange={(e) => setCardNetwork(e.target.value)} style={{ padding: '12px', borderRadius: '8px', background: '#0E1117', color: '#FAFAFA', border: '1px solid #2E3A4E' }}>
-              <option value="Visa">Visa</option>
-              <option value="Mastercard">Mastercard</option>
-              <option value="UnionPay">UnionPay</option>
-              <option value="Amex">American Express</option>
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label>Card Number</label>
-            <input type="text" value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} placeholder="e.g. 4242424242424242" minLength="16" maxLength="19" required />
+            <label style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Card Number</span>
+              {/* Dynamic BIN Detection Badge */}
+              {cardNumber.length >= 1 && (
+                <span style={{ color: '#4DB8FF', fontWeight: 'bold', fontSize: '0.8rem', textTransform: 'uppercase' }}>
+                  {detectCardNetwork(cardNumber)}
+                </span>
+              )}
+            </label>
+            <input 
+              type="text" 
+              value={cardNumber} 
+              onChange={(e) => {
+                setCardNumber(e.target.value);
+                setCardNetwork(detectCardNetwork(e.target.value));
+              }} 
+              placeholder="e.g. 4242424242424242" 
+              minLength="16" 
+              maxLength="19" 
+              required 
+            />
           </div>
 
           <div className="form-group">
