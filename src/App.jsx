@@ -11,19 +11,20 @@ function App() {
   const [authError, setAuthError] = useState('');
 
   // --- App State ---
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState('dashboard’);
   
   // --- Prediction State ---
   const [cardNetwork, setCardNetwork] = useState('Unknown');
   const [cardNumber, setCardNumber] = useState('');
   const [amount, setAmount] = useState('');
+  const [currency, setCurrency] = useState('USD'); // NEW
   const [hour, setHour] = useState('');
   const [age, setAge] = useState('');
   const [isInternational, setIsInternational] = useState(false);
   const [ipAddress, setIpAddress] = useState('192.168.1.1'); 
   const [deviceId, setDeviceId] = useState('iPhone-12');
   const [typingSpeed, setTypingSpeed] = useState(1.5);
-  const [isWireTransfer, setIsWireTransfer] = useState(false); // NEW: Maker-Checker trigger
+  const [isWireTransfer, setIsWireTransfer] = useState(false);
 
   // --- ACH Validation State ---
   const [achAccount, setAchAccount] = useState('');
@@ -215,10 +216,10 @@ function App() {
     }
 
     if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
-      errors.amount = "Amount must be greater than $0.";
+      errors.amount = "Amount must be greater than 0.";
       isValid = false;
     } else if (parseFloat(amount) >= 1000000) {
-      errors.amount = "Amount exceeds maximum limit of $1,000,000.";
+      errors.amount = "Amount exceeds maximum limit.";
       isValid = false;
     }
 
@@ -263,6 +264,7 @@ function App() {
           card_network: cardNetwork, 
           card_number: cardNumber.replace(/\s/g, ''),
           amount: parseFloat(amount),
+          currency: currency, // <--- ADDED
           hour_of_day: parseInt(hour), 
           user_age: parseInt(age), 
           is_international: isInternational ? 1 : 0,
@@ -416,19 +418,31 @@ function App() {
                     {formErrors.cardNumber && <span style={{ color: '#FF4B4B', fontSize: '0.8rem', marginTop: '5px' }}>{formErrors.cardNumber}</span>}
                   </div>
 
-                  {/* Amount */}
+                  {/* Amount & Currency */}
                   <div className="form-group">
-                    <label>Amount ($)</label>
-                    <input 
-                      type="number" 
-                      value={amount} 
-                      onChange={(e) => {
-                        setAmount(e.target.value);
-                        if (formErrors.amount) setFormErrors({...formErrors, amount: ''});
-                      }} 
-                      placeholder="e.g. 4500" 
-                      style={{ borderColor: formErrors.amount ? '#FF4B4B' : '' }}
-                    />
+                    <label>Amount</label>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <select 
+                        value={currency} 
+                        onChange={(e) => setCurrency(e.target.value)}
+                        style={{ width: '100px', padding: '12px', borderRadius: '8px', background: '#0E1117', color: '#FAFAFA', border: '1px solid #2E3A4E' }}
+                      >
+                        <option value="USD">USD ($)</option>
+                        <option value="EUR">EUR (€)</option>
+                        <option value="CNY">CNY (¥)</option>
+                        <option value="GBP">GBP (£)</option>
+                      </select>
+                      <input 
+                        type="number" 
+                        value={amount} 
+                        onChange={(e) => {
+                          setAmount(e.target.value);
+                          if (formErrors.amount) setFormErrors({...formErrors, amount: ''});
+                        }} 
+                        placeholder="e.g. 4500" 
+                        style={{ flex: 1, borderColor: formErrors.amount ? '#FF4B4B' : '' }}
+                      />
+                    </div>
                     {formErrors.amount && <span style={{ color: '#FF4B4B', fontSize: '0.8rem', marginTop: '5px' }}>{formErrors.amount}</span>}
                   </div>
 
@@ -547,7 +561,7 @@ function App() {
                       {history.slice(0, 5).map((tx, index) => (
                         <tr key={index} className="table-row-hover" style={{ borderBottom: '1px solid #1E232E', color: '#FAFAFA' }}>
                           <td style={{ padding: '15px 10px' }}>{tx.card_network} (...{tx.card_number.slice(-4)})</td>
-                          <td style={{ padding: '15px 10px' }}>${tx.amount}</td>
+                          <td style={{ padding: '15px 10px' }}>{tx.currency} {tx.amount}</td>
                           <td style={{ padding: '15px 10px' }}>
                             <span style={{ 
                               padding: '5px 10px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 'bold', 
@@ -577,7 +591,6 @@ function App() {
                   <tr style={{ borderBottom: '1px solid #2E3A4E', color: '#A0AABF' }}>
                     <th style={{ padding: '10px' }}>Card</th>
                     <th style={{ padding: '10px' }}>Amount</th>
-                    <th style={{ padding: '10px' }}>IP / Device</th>
                     <th style={{ padding: '10px' }}>Time</th>
                     <th style={{ padding: '10px' }}>Result</th>
                   </tr>
@@ -586,8 +599,7 @@ function App() {
                   {history.map((tx, index) => (
                     <tr key={index} className="table-row-hover" style={{ borderBottom: '1px solid #1E232E', color: '#FAFAFA' }}>
                       <td style={{ padding: '15px 10px' }}>{tx.card_network} (...{tx.card_number.slice(-4)})</td>
-                      <td style={{ padding: '15px 10px' }}>${tx.amount}</td>
-                      <td style={{ padding: '15px 10px', color: '#A0AABF', fontSize: '0.8rem' }}>{tx.ip_address} <br/> {tx.device_id}</td>
+                      <td style={{ padding: '15px 10px' }}>{tx.currency} {tx.amount}</td>
                       <td style={{ padding: '15px 10px', color: '#A0AABF' }}>
                         {tx.hour_of_day === 0 ? '12:00 AM' : tx.hour_of_day === 12 ? '12:00 PM' : tx.hour_of_day > 12 ? `${tx.hour_of_day - 12}:00 PM` : `${tx.hour_of_day}:00 AM`}
                       </td>
