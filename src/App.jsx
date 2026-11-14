@@ -11,7 +11,7 @@ function App() {
   const [authError, setAuthError] = useState('');
 
   // --- App State ---
-  const [activeTab, setActiveTab] = useState('dashboard’);
+  const [activeTab, setActiveTab] = useState('dashboard');
   
   // --- Prediction State ---
   const [cardNetwork, setCardNetwork] = useState('Unknown');
