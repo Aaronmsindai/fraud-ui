@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'; // <--- MUST HAVE THIS IMPORT
+import { useState, useEffect } from 'react';
 import './App.css';
 
 function App() {
@@ -22,12 +22,17 @@ function App() {
   const [isInternational, setIsInternational] = useState(false);
   const [ipAddress, setIpAddress] = useState('192.168.1.1'); 
   const [deviceId, setDeviceId] = useState('iPhone-12');
-  const [typingSpeed, setTypingSpeed] = useState(1.5); // NEW: Behavioral Biometrics
+  const [typingSpeed, setTypingSpeed] = useState(1.5);
+  const [isWireTransfer, setIsWireTransfer] = useState(false); // NEW: Maker-Checker trigger
 
   // --- ACH Validation State ---
   const [achAccount, setAchAccount] = useState('');
   const [achRouting, setAchRouting] = useState('');
   const [achStatus, setAchStatus] = useState(null);
+
+  // --- Compliance State ---
+  const [pendingWires, setPendingWires] = useState([]);
+  const [sarLogs, setSarLogs] = useState([]);
 
   // --- Real-Time Validation Errors ---
   const [formErrors, setFormErrors] = useState({
@@ -65,6 +70,15 @@ function App() {
     } catch (error) { console.error(error); }
   };
 
+  const fetchWiresAndSARs = async () => {
+    try {
+      const wRes = await fetch(`${API_URL}/admin/wires`, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (wRes.ok) setPendingWires(await wRes.json());
+      const sRes = await fetch(`${API_URL}/admin/sars`, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (sRes.ok) setSarLogs(await sRes.json());
+    } catch (error) { console.error(error); }
+  };
+
   const triggerRetrain = async () => {
     setRetraining(true);
     try {
@@ -75,10 +89,20 @@ function App() {
     } catch (error) { console.error(error); } finally { setRetraining(false); }
   };
 
+  const approveWire = async (id) => {
+    const res = await fetch(`${API_URL}/admin/wires/${id}/approve`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+    if (res.ok) { alert("Wire Approved & Funds Released!"); fetchWiresAndSARs(); }
+  };
+
+  const fileSAR = async (id) => {
+    const res = await fetch(`${API_URL}/admin/generate_sar/${id}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+    if (res.ok) { alert("SAR Filed to FinCEN!"); fetchWiresAndSARs(); fetchAuditLogs(); }
+  };
+
   useEffect(() => {
     if (token) {
       fetchHistory();
-      if (role === 'admin') { fetchDrift(); fetchAuditLogs(); }
+      if (role === 'admin') { fetchDrift(); fetchAuditLogs(); fetchWiresAndSARs(); }
     }
   }, [token, role]);
 
@@ -133,7 +157,7 @@ function App() {
   };
 
   const handleLogout = () => {
-    setToken(''); setRole('teller'); setResult(null); setHistory([]); setDriftData(null); setAuditLogs([]); setActiveTab('dashboard');
+    setToken(''); setRole('teller'); setResult(null); setHistory([]); setDriftData(null); setAuditLogs([]); setPendingWires([]); setSarLogs([]); setActiveTab('dashboard');
   };
 
   // --- ACH Validation Handler ---
@@ -244,7 +268,8 @@ function App() {
           is_international: isInternational ? 1 : 0,
           ip_address: ipAddress,
           device_id: deviceId,
-          typing_speed: typingSpeed // SENDING BIOMETRIC DATA
+          typing_speed: typingSpeed,
+          is_wire_transfer: isWireTransfer ? 1 : 0
         }),
       });
 
@@ -257,9 +282,12 @@ function App() {
       if (data.prediction === "STEP-UP AUTH") {
         alert("🛑 STEP-UP AUTHENTICATION REQUIRED: An OTP has been sent to the customer's phone.");
       }
+      if (data.requires_dual_approval) {
+        alert("⚠️ Wire Transfer requires Admin approval. Sent to Maker-Checker queue.");
+      }
 
       fetchHistory(); 
-      if (role === 'admin') { fetchDrift(); fetchAuditLogs(); }
+      if (role === 'admin') { fetchDrift(); fetchAuditLogs(); fetchWiresAndSARs(); }
     } catch (error) {
       alert("Failed to connect to the API.");
     } finally {
@@ -318,6 +346,7 @@ function App() {
         <div className={`nav-item ${activeTab === 'transactions' ? 'active' : ''}`} onClick={() => setActiveTab('transactions')}>Transactions</div>
         <div className={`nav-item ${activeTab === 'ach' ? 'active' : ''}`} onClick={() => setActiveTab('ach')}>ACH Validation</div>
         <div className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')}>Risk Analytics</div>
+        {role === 'admin' && <div className={`nav-item ${activeTab === 'compliance' ? 'active' : ''}`} onClick={() => setActiveTab('compliance')}>Compliance (SAR / Wires)</div>}
         {role === 'admin' && <div className={`nav-item ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => setActiveTab('admin')}>Admin Settings</div>}
         <div style={{ marginTop: 'auto' }}><div className="nav-item" onClick={handleLogout} style={{ color: '#FF4B4B' }}>Logout</div></div>
       </div>
@@ -331,6 +360,7 @@ function App() {
               {activeTab === 'transactions' && 'All Transactions'}
               {activeTab === 'ach' && 'ACH Nacha Validation'}
               {activeTab === 'analytics' && 'Risk Analytics'}
+              {activeTab === 'compliance' && 'Regulatory Compliance'}
               {activeTab === 'admin' && 'Admin Settings'}
             </h1>
             <p style={{ color: '#A0AABF', margin: '5px 0 0 0' }}>Real-time transaction analysis</p>
@@ -476,6 +506,13 @@ function App() {
                     <input type="checkbox" checked={isInternational} onChange={(e) => setIsInternational(e.target.checked)} />
                     <label>International Transaction</label>
                   </div>
+                  
+                  {/* NEW: Maker-Checker Trigger */}
+                  <div className="checkbox-group" style={{ marginBottom: '20px' }}>
+                    <input type="checkbox" checked={isWireTransfer} onChange={(e) => setIsWireTransfer(e.target.checked)} />
+                    <label>High-Value Wire Transfer (Requires Dual Approval)</label>
+                  </div>
+
                   <button type="submit" disabled={loading} style={{ width: '100%' }}>{loading ? 'Analyzing...' : 'Analyze Transaction'}</button>
                 </form>
 
@@ -625,6 +662,35 @@ function App() {
           </div>
         )}
 
+        {/* --- TAB: COMPLIANCE (MAKER-CHECKER & SAR) --- */}
+        {activeTab === 'compliance' && role === 'admin' && (
+          <div className="workspace-grid">
+            <div className="dashboard-card">
+              <h3 style={{ color: '#FAFAFA', marginBottom: '20px' }}>Maker-Checker (Dual Approval)</h3>
+              <p style={{ color: '#A0AABF', fontSize: '0.9rem', marginBottom: '15px' }}>Wire transfers require Admin approval before funds are released.</p>
+              {pendingWires.length > 0 ? pendingWires.map(w => (
+                <div key={w.id} style={{ padding: '15px', border: '1px solid #2E3A4E', borderRadius: '8px', marginBottom: '10px' }}>
+                  <p style={{ color: '#FAFAFA', margin: '0 0 10px 0' }}>Wire #{w.id} - ${w.amount}</p>
+                  <p style={{ color: '#A0AABF', fontSize: '0.8rem', margin: '0 0 10px 0' }}>Status: <strong style={{ color: w.status === 'PENDING' ? '#FFB800' : '#2ca02c' }}>{w.status}</strong></p>
+                  {w.status === 'PENDING' && <button onClick={() => approveWire(w.id)} style={{ padding: '8px', fontSize: '0.9rem', background: '#4DB8FF', color: '#000', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Approve & Release Funds</button>}
+                </div>
+              )) : <p style={{ color: '#A0AABF' }}>No pending wires.</p>}
+            </div>
+
+            <div className="dashboard-card">
+              <h3 style={{ color: '#FAFAFA', marginBottom: '20px' }}>SARs (FinCEN Reports)</h3>
+              <p style={{ color: '#A0AABF', fontSize: '0.9rem', marginBottom: '15px' }}>Suspicious Activity Reports filed for blocked transactions.</p>
+              {sarLogs.length > 0 ? sarLogs.map(s => (
+                <div key={s.id} style={{ padding: '15px', border: '1px solid #2E3A4E', borderRadius: '8px', marginBottom: '10px' }}>
+                  <p style={{ color: '#FAFAFA', margin: '0 0 5px 0' }}>SAR #{s.id} (Tx #{s.transaction_id})</p>
+                  <p style={{ color: '#FF4B4B', fontSize: '0.8rem' }}>{s.reason}</p>
+                  <p style={{ color: '#2ca02c', fontSize: '0.8rem', margin: '5px 0 0 0' }}>✅ Filed to FinCEN</p>
+                </div>
+              )) : <p style={{ color: '#A0AABF' }}>No SARs filed yet.</p>}
+            </div>
+          </div>
+        )}
+
         {/* --- TAB: ADMIN SETTINGS --- */}
         {activeTab === 'admin' && role === 'admin' && (
           <div className="dashboard-card">
@@ -641,6 +707,13 @@ function App() {
                 <div key={i} style={{ fontSize: '0.9rem', borderBottom: '1px solid #1E232E', paddingBottom: '10px', marginBottom: '10px', color: '#FAFAFA' }}>
                   <span style={{ color: log.prediction === 'BLOCK' ? '#FF4B4B' : log.prediction === 'STEP-UP AUTH' ? '#FFB800' : '#2ca02c', fontWeight: 'bold' }}>{log.prediction}</span> - ${log.amount} ({log.card_network}: {log.card_number}) <br/>
                   <span style={{ color: '#A0AABF', fontSize: '0.8rem' }}>Model: v{log.model_version} | {new Date(log.timestamp).toLocaleString()}</span>
+                  
+                  {/* SAR Button */}
+                  <div style={{ marginTop: '10px' }}>
+                    <button onClick={() => fileSAR(log.id)} style={{ padding: '5px 10px', fontSize: '0.8rem', width: 'auto', background: '#FF4B4B', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
+                      File SAR Report
+                    </button>
+                  </div>
                 </div>
               )) : <p style={{ color: '#A0AABF' }}>No audit logs yet. Run a prediction!</p>}
             </div>
